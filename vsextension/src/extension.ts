@@ -65,8 +65,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage('Created "workdir" directory in the workspace.');
 	}
 
-	await writeQueries(reposhieldPath);
-
 	// Register the command to scan a single file
 	// const disposableFileScan = vscode.commands.registerCommand('reposhield.scanFile', async () => {
 		// const editor = vscode.window.activeTextEditor;
@@ -103,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			// Run the CodeQL CLI to create the database
 			vscode.window.showInformationMessage('Creating CodeQL database...');
 
-			const command = `codeql database create ${databaseFolder} --language=python --source-root=${workspaceFolder.uri.fsPath} --overwrite`;
+			const command = `codeql database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
 			console.log("Command: ", command);
 			const createDatabaseProcess = cp.exec(command, { cwd: workspaceFolder.uri.fsPath });
 			if (createDatabaseProcess !== null && createDatabaseProcess.stdout !== null && createDatabaseProcess.stderr !== null) {
@@ -118,8 +116,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				createDatabaseProcess.on('close', async (code) => {
 					if (code === 0) {
 						vscode.window.showInformationMessage(`CodeQL database created successfully at ${databaseFolder}`);
-						await analyzeDatabase(databaseFolder, workspaceFolder);
-						openSarifViewerPannel(path.join(databaseFolder, 'results.sarif'));
+						await analyzeDatabase(databaseFolder, workspaceFolder, reposhieldPath);
 					} else {
 						vscode.window.showErrorMessage(`CodeQL database creation failed with exit code ${code}`);
 					}
@@ -130,7 +127,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// context.subscriptions.push(disposableFileScan);
+	const disposableReadLog = vscode.commands.registerCommand('reposhield.readLog', async () => {
+		try {
+			await openSarifViewerPannel(path.join(reposhieldPath, 'results.sarif'));
+		} catch (error: any) {
+			vscode.window.showErrorMessage(`Error: ${error.message}`);
+		}
+	});
+
+	context.subscriptions.push(disposableReadLog);
 	context.subscriptions.push(disposableFolderScan);
 }
 
@@ -163,7 +168,7 @@ export async function activate(context: vscode.ExtensionContext) {
 // }
 
 // Run a command using child process
-async function analyzeDatabase(databaseFolder: string, workspaceFolder: any) {
+async function analyzeDatabase(databaseFolder: string, workspaceFolder: any, reposhieldPath: string) {
 	fs.readFile(path.join(databaseFolder, 'baseline-info.json'), 'utf8', (err, data) => {
 		if (err) {
 			console.error('Error reading the file:', err);
@@ -173,11 +178,11 @@ async function analyzeDatabase(databaseFolder: string, workspaceFolder: any) {
 		try {
 			const parsedData = JSON.parse(data);
 			const languages = Object.keys(parsedData['languages']);
-			let command = `codeql database analyze ${databaseFolder}`;
+			let command = `codeql database analyze "${databaseFolder}"`;
 			languages.forEach(language => {
 				command += ` codeql/${language}-queries`;
 			});
-			command += ` --format=sarifv2.1.0 --output=${databaseFolder}\\results.sarif --download`;
+			command += ` --format=sarifv2.1.0 --output="${reposhieldPath}\\results.sarif" --download`;
 
 			vscode.window.showInformationMessage('Analyzing database... (this may take a while)');
 
@@ -192,9 +197,12 @@ async function analyzeDatabase(databaseFolder: string, workspaceFolder: any) {
 					console.error("Running... (ignore these errors)", error);
 				});
 
-				analyzeDatabaseProcess.on('close', (code) => {
+				analyzeDatabaseProcess.on('close', async (code) => {
 					if (code === 0) {
 						vscode.window.showInformationMessage(`CodeQL database analyzed successfully!`);
+						console.log("Opening log");
+						await openSarifViewerPannel(path.join(reposhieldPath, 'results.sarif'));
+						console.log("Done Opening log");
 					} else {
 						vscode.window.showErrorMessage(`CodeQL database analysis failed with exit code ${code}`);
 					}
@@ -209,20 +217,27 @@ async function analyzeDatabase(databaseFolder: string, workspaceFolder: any) {
 }
 
 async function openSarifViewerPannel(filePath: string) {
-	const sarifExt = vscode.extensions.getExtension('MS-SarifVSCode.sarif-viewer');
-	if (sarifExt === undefined) {
-		vscode.window.showWarningMessage("Please install 'Sarif Viewer' to view SAST report better.", ...['Install'])
-			.then(install => {
-				if (install === "Install") {
-					vscode.commands.executeCommand('workbench.extensions.installExtension', 'MS-SarifVSCode.sarif-viewer');
-				}
-			});
-		return false;
+	try{
+		const sarifExt = vscode.extensions.getExtension('MS-SarifVSCode.sarif-viewer');
+		if (sarifExt === undefined) {
+			vscode.window.showWarningMessage("Please install 'Sarif Viewer' to view SAST report better.", ...['Install'])
+				.then(install => {
+					if (install === "Install") {
+						vscode.commands.executeCommand('workbench.extensions.installExtension', 'MS-SarifVSCode.sarif-viewer');
+					}
+				});
+			return false;
+		}
+		vscode.window.showInformationMessage(`Opening log in Sarif Viewer...`);
+		if (!sarifExt.isActive) await sarifExt.activate();
+		await sarifExt.exports.openLogs([
+			vscode.Uri.file(filePath),
+		]);
+	} catch (err) {
+		console.error('Error parsing JSON:', err);
+		return;
 	}
-	if (!sarifExt.isActive) await sarifExt.activate();
-	await sarifExt.exports.openLogs([
-		vscode.Uri.file(filePath),
-	]);
+	
 	return true;
 }
 
@@ -348,26 +363,6 @@ async function downloadCodeQL(): Promise<string> {
 			reject(err);
 		});
 	});
-}
-
-async function writeQueries(dirPath: string) {
-	// Define the query string (you can customize this query)
-	const queryString = `
-        import cpp
-
-        from Function f
-        where f.getLocation().getFile().getPath().contains("example")
-        select f, f.getLocation()
-      `;
-
-	// Generate a unique filename for the .ql query
-	const queryFileName = 'vulns.ql';
-	const queryFilePath = path.join(dirPath, queryFileName);
-
-	// Write the query string to the .ql file in the workdir
-	fs.writeFileSync(queryFilePath, queryString);
-
-	console.log("Queries written!");
 }
 
 async function setCodeQLPath(codeqlPath: string) {

@@ -11,7 +11,6 @@
   ],
   "extensionDependencies": [],
   "activationEvents": [
-    "onCommand:reposhield.scanWorkspace"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -35,13 +34,17 @@
     "viewsWelcome": [
       {
         "view": "reposhieldProject",
-        "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)"
+        "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)\n[Read log](command:reposhield.readLog)"
       }
     ],
     "commands": [
       {
         "command": "reposhield.scanWorkspace",
         "title": "RepoShield: Scan whole workspace"
+      },
+      {
+        "command": "reposhield.readLog",
+        "title": "RepoShield: Read Log"
       }
     ]
   },
