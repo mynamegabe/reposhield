@@ -5,6 +5,87 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as unzipper from 'unzipper';
 import * as os from 'os';
+import { runDocker, cleanDockerContainer } from './cmd';
+
+// Needs revision
+const DOCKERFILE_CONTENT = `FROM --platform=amd64 ubuntu:20.04
+
+# tzdata install needs to be non-interactive
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set up the enviroment
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    	software-properties-common \
+    	vim \
+    	curl \
+    	wget \
+    	git \
+    	jq \
+    	build-essential \
+    	unzip \
+    	apt-transport-https \
+        python3.8 \
+    	python3-venv \
+    	python3-pip \
+    	python3-setuptools \
+        python3-dev \
+    	gnupg \
+    	g++ \
+    	make \
+    	gcc \
+		nodejs \
+    	apt-utils \
+        rsync \
+    	file \
+        dos2unix \
+        default-jdk \
+		maven \
+    	gettext && \
+        apt-get clean && \
+        ln -sf /usr/bin/python3.8 /usr/bin/python && \
+        ln -sf /usr/bin/pip3 /usr/bin/pip
+
+# Install Gradle
+ENV GRADLE_VERSION=7.4.2
+RUN wget https://services.gradle.org/distributions/gradle-\${GRADLE_VERSION}-bin.zip -P /tmp
+RUN unzip -d /opt/gradle /tmp/gradle-\${{GRADLE_VERSION}}-bin.zip
+RUN ln -s /opt/gradle/gradle-\${GRADLE_VERSION} /opt/gradle/latest
+
+# Install Linguist
+RUN apt-get install -y cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev
+RUN gem install github-linguist
+
+
+# Install Golang
+RUN wget -q -O - https://raw.githubusercontent.com/canha/golang-tools-install-script/master/goinstall.sh | bash
+
+# Install latest codeQL
+ENV CODEQL_HOME /root/codeql-home
+
+# Get CodeQL verion
+RUN curl --silent "https://api.github.com/repos/github/codeql-cli-binaries/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\\1/' > /tmp/codeql_version
+
+# Get CodeQL Bundle version
+RUN curl --silent "https://api.github.com/repos/github/codeql-action/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\\1/' > /tmp/codeql_bundle_version
+
+# Make the codeql folder
+RUN mkdir -p \${CODEQL_HOME} \
+    /opt/codeql
+
+# Downdload and extract CodeQL Bundle
+RUN CODEQL_BUNDLE_VERSION=$(cat /tmp/codeql_bundle_version) && \
+    wget -q https://github.com/github/codeql-action/releases/download/\${CODEQL_BUNDLE_VERSION}/codeql-bundle-linux64.tar.gz -O /tmp/codeql_linux.tar.gz && \
+    tar -xf /tmp/codeql_linux.tar.gz -C \${CODEQL_HOME} && \
+    rm /tmp/codeql_linux.tar.gz
+
+ENV PATH="$PATH:\${CODEQL_HOME}/codeql:/opt/gradle/gradle-\${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+COPY scripts /root/scripts
+
+# Execute analyze script
+WORKDIR /root/
+ENTRYPOINT ["/root/scripts/analyze.sh"]`;
 
 // This method is called when your extension is activated
 export async function activate(context: vscode.ExtensionContext) {
@@ -56,47 +137,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	if (!fs.existsSync(databaseFolder)) {
 		fs.mkdirSync(databaseFolder, { recursive: true });
+		await writeFile(path.join(reposhieldPath, 'Dockerfile'), DOCKERFILE_CONTENT);
 		vscode.window.showInformationMessage('Created "codeql-database" directory in the workspace.');
 	}
 
-	// Create the workdir if it doesn't exist
-	if (!fs.existsSync(reposhieldPath)) {
-		fs.mkdirSync(reposhieldPath, { recursive: true });
-		vscode.window.showInformationMessage('Created "workdir" directory in the workspace.');
-	}
-
-	// Register the command to scan a single file
-	// const disposableFileScan = vscode.commands.registerCommand('reposhield.scanFile', async () => {
-		// const editor = vscode.window.activeTextEditor;
-		// if (editor) {
-		// 	const filePath = editor.document.uri.fsPath;
-		// 	console.log('Scanning file:', filePath);
-		// 	await scanCode(filePath);
-		// } else {
-		// 	vscode.window.showErrorMessage('No active file to scan!');
-		// }
-		
-	// 	try {
-	// 		vscode.commands.executeCommand('codeQL.runQuery', '.reposhield\\vulns.ql')
-	// 			.then(() => {
-	// 				vscode.window.showInformationMessage('CodeQL query completed successfully!');
-	// 			}, (err) => {
-	// 				vscode.window.showErrorMessage(`CodeQL query failed: ${err.message}`);
-	// 			});
-	// 	} catch (error:any) {
-	// 		vscode.window.showErrorMessage(`Error: ${error.message}`);
-	// 	}
-	// });
-
 	// Register the command to scan the whole workspace/folder
 	const disposableFolderScan = vscode.commands.registerCommand('reposhield.scanWorkspace', async () => {
-		// const folderUri = await vscode.window.showOpenDialog({ canSelectFolders: true, openLabel: 'Select Folder' });
-		// if (folderUri && folderUri.length > 0) {
-		// 	const folderPath = folderUri[0].fsPath;
-		// 	await scanCode(folderPath, true);
-		// } else {
-		// 	vscode.window.showErrorMessage('No folder selected to scan!');
-		// }
 		try {
 			// Run the CodeQL CLI to create the database
 			vscode.window.showInformationMessage('Creating CodeQL database...');
@@ -135,37 +181,26 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+
+	const disposableDynamic = vscode.commands.registerCommand('reposhield.dynamicanalysis', async () => {
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: `Performing dynamic analysis on this workspace...`,
+			cancellable: true
+		}, async (progress, token) => {
+			token.onCancellationRequested(() => {
+				cleanDockerContainer();
+				console.log("User canceled the long running operation");
+			});
+			await runDocker();
+			vscode.window.showInformationMessage("Scanning complete");
+		});
+	});
+
+	context.subscriptions.push(disposableDynamic);
 	context.subscriptions.push(disposableReadLog);
 	context.subscriptions.push(disposableFolderScan);
 }
-
-// Scan the code using CodeQL
-// async function scanCode(targetPath: string, isFolder: boolean = false) {
-// 	const codeqlPath = os.homedir() + '\\codeql'; // Replace this with the correct path to CodeQL
-// 	const queryPath = '/path/to/your/queries'; // Replace this with the path to your CodeQL queries
-
-// 	let command: string;
-
-// 	if (isFolder) {
-// 		command = `${codeqlPath} database analyze ${targetPath} --format=sarif-latest --output=scan-results.sarif`;
-// 	} else {
-// 		command = `${codeqlPath} query run ${queryPath}/vulnerabilities.ql --database=${targetPath} --format=sarif-latest --output=scan-results.sarif`;
-// 	}
-
-// 	try {
-// 		const result = await runCommand(command);
-// 		const scanResults = JSON.parse(result);
-
-// 		// Highlight found vulnerabilities in the editor
-// 		if (scanResults?.runs?.[0]?.results?.length) {
-// 			highlightVulnerabilities(scanResults.runs[0].results);
-// 		} else {
-// 			vscode.window.showInformationMessage('No vulnerabilities found.');
-// 		}
-// 	} catch (error) {
-// 		vscode.window.showErrorMessage('Error during scanning: ' + error);
-// 	}
-// }
 
 // Run a command using child process
 async function analyzeDatabase(databaseFolder: string, workspaceFolder: any, reposhieldPath: string) {
@@ -241,57 +276,24 @@ async function openSarifViewerPannel(filePath: string) {
 	return true;
 }
 
-
-async function runCommand(command: string): Promise<string> {
-	return new Promise((resolve, reject) => {
-		cp.exec(command, (error:any, stdout, stderr) => {
-			if (error || stderr) {
-				reject(`Error: ${stderr || error.message}`);
-			}
-			resolve(stdout);
-		});
+/**
+ * Creates a file at the given filePath with the provided content.
+ * @param filePath The path where the file should be created.
+ * @param fileContent The content to be written to the file.
+ */
+async function writeFile(filePath: string, fileContent: string) {
+	if (fs.existsSync(filePath)) {
+		console.error("File already exists.");
+		return;
+	}
+	fs.writeFile(filePath, fileContent, (err) => {
+		if (err) {
+			console.error("Failed to create file.");
+			return;
+		}
+		console.log(`File created successfully at: ${filePath}`);
 	});
 }
-
-// Highlight vulnerabilities found by CodeQL in the editor
-// async function highlightVulnerabilities(vulnerabilities: any[]) {
-// 	const editor = vscode.window.activeTextEditor;
-// 	if (!editor) return;
-
-// 	const decorations: vscode.DecorationOptions[] = [];
-
-// 	vulnerabilities.forEach((vuln: any) => {
-// 		const startLine = vuln.location?.start?.line - 1; // CodeQL output uses 1-based indexing
-// 		const startChar = vuln.location?.start?.column - 1; // CodeQL output uses 1-based indexing
-// 		const endLine = vuln.location?.end?.line - 1;
-// 		const endChar = vuln.location?.end?.column - 1;
-
-// 		if (startLine !== undefined && endLine !== undefined) {
-// 			const range = new vscode.Range(
-// 				new vscode.Position(startLine, startChar),
-// 				new vscode.Position(endLine, endChar)
-// 			);
-
-// 			const decoration: vscode.DecorationOptions = {
-// 				range,
-// 				renderOptions: {
-// 					before: {
-// 						contentText: '⚠️',
-// 						color: 'red',
-// 						margin: '0 0.5em 0 0'
-// 					},
-// 					background: 'rgba(255, 0, 0, 0.1)'
-// 				}
-// 			};
-
-// 			decorations.push(decoration);
-// 		}
-// 	});
-
-// 	// Create a decoration type
-// 	const decorationType = vscode.window.createTextEditorDecorationType({});
-// 	editor.setDecorations(decorationType, decorations);
-// }
 
 // Function to check if CodeQL is installed
 async function isCodeQLInstalled(): Promise<boolean> {
@@ -381,7 +383,6 @@ async function getDownloadUrlForPlatform(): Promise<string> {
 		throw new Error('Unsupported platform');
 	}
 }
-
 
 // This method is called when your extension is deactivated
 export async function deactivate() { }
