@@ -10,8 +10,8 @@ yo code
 Upon installing the extension, there will be a new icon at the left activity bar of vs code, use that to run a scan on the workspace.
 
 You can also `read logs` after running a codeql scan.
-
-## Scan workspace
+## Features
+### Scan workspace
 Scans the workspace using **CodeQL**. Currently is only checks for empty try/except blocks in python. It should be modified to scan a range of programming languages and scan using custom/predefined query packs.
 
 The custom query packs are placed under the `/queries` folder. Right now it runs a predefined query pack called `codeql/python-queries`.
@@ -20,12 +20,12 @@ We can modify the database analysis to run our custom query as well, but need to
 
 To view predefined query packs, refer to the `CodeQL Query packs` section of this README.
 
-## Read Log
+### Read Log
 Reads the logs using `Sarif Reader` vscode extension.
 
 Logs have to be generated first by running `Scan workspace`.
 
-## Run dynamic analysis
+### Run dynamic analysis
 Builds a docker container as a sandboxing method. Right now it gets cpu and ram usage after executing the web application. Need to output way more information on these.
 
 One huge disadvantage of this method is that it uses up 3GB of space just for one container. (may need to remove the container after running so to save space).
@@ -42,7 +42,7 @@ The values to set these env vars can be defined with the help of LLM.
 - **ENDPOINTS**: endpoints of the web app, delimited by ','
 - **LANGUAGE**: programming language used for the base application (need to figure out how to do it for multiple languages)
 
-### CodeQL Query packs
+## CodeQL Query packs
 https://github.com/advanced-security/awesome-codeql?tab=readme-ov-file
 https://github.com/orgs/codeql/packages?tab=packages&q=javascript
 
