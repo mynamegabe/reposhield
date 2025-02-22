@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Ensure necessary environment variables are set
-if [ -z "$ExeCmd" ]; then
-  echo "ExeCmd is not set! Please provide the command to start the web service."
+if [ -z "$EXECMD" ]; then
+  echo "EXECMD is not set! Please provide the command to start the web service."
   exit 1
 fi
 
@@ -16,65 +16,70 @@ if [ -z "$LANGUAGE" ]; then
   exit 1
 fi
 
+if [ -z "$APPPORT" ]; then
+  echo "APPPORT is not set! Please provide the port that the web service runs on."
+  exit 1
+fi
+
 # Install dependencies based on the LANGUAGE environment variable
-install_dependencies() {
-  DEPENDENCY_DIR="/opt/src"
-  
+WORKSPACE="/opt/src"
+
+install_dependencies() {  
   case "$LANGUAGE" in
     node)
-      if [ -f "$DEPENDENCY_DIR/package.json" ]; then
+      if [ -f "$WORKSPACE/package.json" ]; then
         echo "Installing Node.js dependencies from package.json..."
-        npm install --prefix "$DEPENDENCY_DIR"
+        npm install --prefix "$WORKSPACE"
       else
-        echo "package.json not found in $DEPENDENCY_DIR! Please ensure it exists to install dependencies."
+        echo "package.json not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
       fi
       ;;
     python)
-      if [ -f "$DEPENDENCY_DIR/requirements.txt" ]; then
+      if [ -f "$WORKSPACE/requirements.txt" ]; then
         echo "Installing Python dependencies from requirements.txt..."
-        pip install -r "$DEPENDENCY_DIR/requirements.txt"
+        pip install -r "$WORKSPACE/requirements.txt"
       else
-        echo "requirements.txt not found in $DEPENDENCY_DIR! Please ensure it exists to install dependencies."
+        echo "requirements.txt not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
       fi
       ;;
     ruby)
-      if [ -f "$DEPENDENCY_DIR/Gemfile" ]; then
+      if [ -f "$WORKSPACE/Gemfile" ]; then
         echo "Installing Ruby dependencies from Gemfile..."
-        bundle install --gemfile="$DEPENDENCY_DIR/Gemfile"
+        bundle install --gemfile="$WORKSPACE/Gemfile"
       else
-        echo "Gemfile not found in $DEPENDENCY_DIR! Please ensure it exists to install dependencies."
+        echo "Gemfile not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
       fi
       ;;
     go)
-      if [ -f "$DEPENDENCY_DIR/go.mod" ]; then
+      if [ -f "$WORKSPACE/go.mod" ]; then
         echo "Installing Go dependencies from go.mod..."
-        go mod tidy -modfile="$DEPENDENCY_DIR/go.mod"
+        go mod tidy -modfile="$WORKSPACE/go.mod"
       else
-        echo "go.mod not found in $DEPENDENCY_DIR! Please ensure it exists to install dependencies."
+        echo "go.mod not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
       fi
       ;;
     java)
-      if [ -f "$DEPENDENCY_DIR/pom.xml" ]; then
+      if [ -f "$WORKSPACE/pom.xml" ]; then
         echo "Installing Java dependencies from pom.xml (Maven)..."
-        mvn -f "$DEPENDENCY_DIR/pom.xml" install
-      elif [ -f "$DEPENDENCY_DIR/build.gradle" ]; then
+        mvn -f "$WORKSPACE/pom.xml" install
+      elif [ -f "$WORKSPACE/build.gradle" ]; then
         echo "Installing Java dependencies from build.gradle (Gradle)..."
-        gradle -b "$DEPENDENCY_DIR/build.gradle" build
+        gradle -b "$WORKSPACE/build.gradle" build
       else
-        echo "Neither pom.xml nor build.gradle found in $DEPENDENCY_DIR! Please ensure one exists to install dependencies."
+        echo "Neither pom.xml nor build.gradle found in $WORKSPACE! Please ensure one exists to install dependencies."
         exit 1
       fi
       ;;
     php)
-      if [ -f "$DEPENDENCY_DIR/composer.json" ]; then
+      if [ -f "$WORKSPACE/composer.json" ]; then
         echo "Installing PHP dependencies from composer.json..."
-        composer install --working-dir="$DEPENDENCY_DIR"
+        composer install --working-dir="$WORKSPACE"
       else
-        echo "composer.json not found in $DEPENDENCY_DIR! Please ensure it exists to install dependencies."
+        echo "composer.json not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
       fi
       ;;
@@ -85,12 +90,15 @@ install_dependencies() {
   esac
 }
 
+echo "Changing to WORKSPACE directory: $WORKSPACE"
+cd "$WORKSPACE" || { echo "Failed to change to WORKSPACE directory. Exiting."; exit 1; }
+
 # Install dependencies
 install_dependencies
 
 # Start the web service
-echo "Starting the web service with command: $ExeCmd"
-$ExeCmd &
+echo "Starting the web service with command: $EXECMD"
+$EXECMD &
 SERVICE_PID=$!
 
 # Give the service a few seconds to initialize
@@ -118,17 +126,20 @@ run_fuzzers() {
   # Iterate through each endpoint and simulate fuzzing
   IFS=',' read -r -a endpoint_array <<< "$endpoints"
   for endpoint in "${endpoint_array[@]}"; do
-    echo -e "Fuzzing endpoint: $endpoint" >> "$report_file"
+    # Create the full URL using the APPPORT and the endpoint
+    FULL_URL="http://localhost:${APPPORT}/${endpoint}"
+    
+    echo -e "Fuzzing endpoint: $FULL_URL" >> "$report_file"
 
     # Basic fuzzing logic (just random characters for this demo)
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$endpoint" -d "@<(echo $RANDOM)" -X POST)
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FULL_URL" -d "@<(echo $RANDOM)" -X POST)
     
     # You could add more detailed checks here to look for crashes or vulnerabilities
     if [[ "$RESPONSE" -eq 500 || "$RESPONSE" -eq 400 ]]; then
-      echo "Potential issue or crash found at endpoint: $endpoint (HTTP $RESPONSE)" >> "$report_file"
+      echo "Potential issue or crash found at endpoint: $FULL_URL (HTTP $RESPONSE)" >> "$report_file"
       found_issues=true
     else
-      echo "No issues found at endpoint: $endpoint" >> "$report_file"
+      echo "No issues found at endpoint: $FULL_URL" >> "$report_file"
     fi
   done
 

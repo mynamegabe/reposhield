@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 let OVERWRITE_FLAG = false;
-let DOCKER_CONTAINER_NAME = 'codeql-agent';
+let DOCKER_CONTAINER_NAME = 'reposhield_analysis';
 
 export async function executeCommand(
     command: string,
@@ -13,7 +13,7 @@ export async function executeCommand(
     // Add logging arguments first, in case commandArgs contains positional parameters.
     // const args = command.concat(commandArgs);
     try {
-        void console.log(`Cmd running ${description}: ${command}...`);
+        void console.log(`Cmd running ${description}: "${command}"...`);
         // const result = await promisify(child_process.execFile)(commandPath, args, {shell: true});
 
         const result = cp.exec(command, { cwd: cwd });
@@ -54,12 +54,19 @@ export async function runDocker(): Promise<boolean> {
 
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
 
-    await executeCommand(command, 'Codeql scan', reposhieldPath);
+    await executeCommand(command, 'Building docker container', reposhieldPath);
+    let envs = [];
+    // Hardcoded for now for testing
+    envs.push(
+        `-e "EXECMD=python app.py"`,
+        `-e "APPPORT=5000"`,
+        `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`,
+        `-e "LANGUAGE=python"`,
+    );
+    const envString = envs.join(' ');
 
-    let env = "GROUPID=1000";
-
-    command = `docker run --rm --name ${DOCKER_CONTAINER_NAME} -v "${reposhieldPath}:/opt/src" ${env === undefined ? '' : '-e ' + env} ${DOCKER_CONTAINER_NAME}`;
-    await executeCommand(command, 'Codeql scan', reposhieldPath);
+    command = `docker run --rm --name ${DOCKER_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${DOCKER_CONTAINER_NAME}`;
+    await executeCommand(command, 'Running docker container', reposhieldPath);
 
     return true;
 }

@@ -8,7 +8,9 @@ import * as os from 'os';
 import { runDocker, cleanDockerContainer } from './cmd';
 
 // Needs revision
-const DOCKERFILE_CONTENT = `FROM --platform=amd64 ubuntu:20.04
+// Maybe make it modify the packages installed based on what languages are being used
+// Dockerfile and analyze.sh can be taken from the github repo instead  of hardcode in here (maybe)
+const DOCKERFILE_CONTENT = `FROM ubuntu:20.04
 
 # tzdata install needs to be non-interactive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -50,42 +52,186 @@ RUN apt-get update && \
 # Install Gradle
 ENV GRADLE_VERSION=7.4.2
 RUN wget https://services.gradle.org/distributions/gradle-\${GRADLE_VERSION}-bin.zip -P /tmp
-RUN unzip -d /opt/gradle /tmp/gradle-\${{GRADLE_VERSION}}-bin.zip
+RUN unzip -d /opt/gradle /tmp/gradle-\${GRADLE_VERSION}-bin.zip
 RUN ln -s /opt/gradle/gradle-\${GRADLE_VERSION} /opt/gradle/latest
 
 # Install Linguist
 RUN apt-get install -y cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev
 RUN gem install github-linguist
 
-
 # Install Golang
 RUN wget -q -O - https://raw.githubusercontent.com/canha/golang-tools-install-script/master/goinstall.sh | bash
 
-# Install latest codeQL
-ENV CODEQL_HOME /root/codeql-home
+ENV PATH="$PATH:/opt/gradle/gradle-\${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Get CodeQL verion
-RUN curl --silent "https://api.github.com/repos/github/codeql-cli-binaries/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\\1/' > /tmp/codeql_version
-
-# Get CodeQL Bundle version
-RUN curl --silent "https://api.github.com/repos/github/codeql-action/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\\1/' > /tmp/codeql_bundle_version
-
-# Make the codeql folder
-RUN mkdir -p \${CODEQL_HOME} \
-    /opt/codeql
-
-# Downdload and extract CodeQL Bundle
-RUN CODEQL_BUNDLE_VERSION=$(cat /tmp/codeql_bundle_version) && \
-    wget -q https://github.com/github/codeql-action/releases/download/\${CODEQL_BUNDLE_VERSION}/codeql-bundle-linux64.tar.gz -O /tmp/codeql_linux.tar.gz && \
-    tar -xf /tmp/codeql_linux.tar.gz -C \${CODEQL_HOME} && \
-    rm /tmp/codeql_linux.tar.gz
-
-ENV PATH="$PATH:\${CODEQL_HOME}/codeql:/opt/gradle/gradle-\${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-COPY scripts /root/scripts
+# RUN wget https://raw.githubusercontent.com/reposhield/scripts/analyze.zip -P /tmp
+# RUN unzip -d /root/scripts /tmp/analyze.zip
+COPY analyze.sh /root/scripts/analyze.sh
+RUN chmod +x /root/scripts/analyze.sh
 
 # Execute analyze script
 WORKDIR /root/
 ENTRYPOINT ["/root/scripts/analyze.sh"]`;
+
+const ANALYZE_SH_CONTENT = `#!/bin/bash
+
+# Ensure necessary environment variables are set
+if [ -z "$EXECMD" ]; then
+  echo "EXECMD is not set! Please provide the command to start the web service."
+  exit 1
+fi
+
+if [ -z "$ENDPOINTS" ]; then
+  echo "ENDPOINTS is not set! Please provide a comma-delimited list of web service endpoints."
+  exit 1
+fi
+
+if [ -z "$LANGUAGE" ]; then
+  echo "LANGUAGE is not set! Please provide the programming language (e.g., node, python)."
+  exit 1
+fi
+
+if [ -z "$APPPORT" ]; then
+  echo "APPPORT is not set! Please provide the port that the web service runs on."
+  exit 1
+fi
+
+# Install dependencies based on the LANGUAGE environment variable
+WORKSPACE="/opt/src"
+
+install_dependencies() {  
+  case "$LANGUAGE" in
+    node)
+      if [ -f "$WORKSPACE/package.json" ]; then
+        echo "Installing Node.js dependencies from package.json..."
+        npm install --prefix "$WORKSPACE"
+      else
+        echo "package.json not found in $WORKSPACE! Please ensure it exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    python)
+      if [ -f "$WORKSPACE/requirements.txt" ]; then
+        echo "Installing Python dependencies from requirements.txt..."
+        pip install -r "$WORKSPACE/requirements.txt"
+      else
+        echo "requirements.txt not found in $WORKSPACE! Please ensure it exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    ruby)
+      if [ -f "$WORKSPACE/Gemfile" ]; then
+        echo "Installing Ruby dependencies from Gemfile..."
+        bundle install --gemfile="$WORKSPACE/Gemfile"
+      else
+        echo "Gemfile not found in $WORKSPACE! Please ensure it exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    go)
+      if [ -f "$WORKSPACE/go.mod" ]; then
+        echo "Installing Go dependencies from go.mod..."
+        go mod tidy -modfile="$WORKSPACE/go.mod"
+      else
+        echo "go.mod not found in $WORKSPACE! Please ensure it exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    java)
+      if [ -f "$WORKSPACE/pom.xml" ]; then
+        echo "Installing Java dependencies from pom.xml (Maven)..."
+        mvn -f "$WORKSPACE/pom.xml" install
+      elif [ -f "$WORKSPACE/build.gradle" ]; then
+        echo "Installing Java dependencies from build.gradle (Gradle)..."
+        gradle -b "$WORKSPACE/build.gradle" build
+      else
+        echo "Neither pom.xml nor build.gradle found in $WORKSPACE! Please ensure one exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    php)
+      if [ -f "$WORKSPACE/composer.json" ]; then
+        echo "Installing PHP dependencies from composer.json..."
+        composer install --working-dir="$WORKSPACE"
+      else
+        echo "composer.json not found in $WORKSPACE! Please ensure it exists to install dependencies."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Unsupported language: $LANGUAGE. Supported options are 'node', 'python', 'ruby', 'go', 'java', 'php'."
+      exit 1
+      ;;
+  esac
+}
+
+echo "Changing to WORKSPACE directory: $WORKSPACE"
+cd "$WORKSPACE" || { echo "Failed to change to WORKSPACE directory. Exiting."; exit 1; }
+
+# Install dependencies
+install_dependencies
+
+# Start the web service
+echo "Starting the web service with command: $EXECMD"
+$EXECMD &
+SERVICE_PID=$!
+
+# Give the service a few seconds to initialize
+sleep 5
+
+# Track CPU and RAM usage of the service
+CPU_RAM_LOG="/opt/src/.reposhield/report"
+echo "Monitoring CPU and RAM usage for process ID $SERVICE_PID..." > "$CPU_RAM_LOG"
+ps -p $SERVICE_PID -o %cpu,%mem,cmd >> "$CPU_RAM_LOG"
+
+# Check if the service is running, if not, exit the script
+if ! ps -p $SERVICE_PID > /dev/null; then
+  echo "Service is not running. Exiting..." >> "$CPU_RAM_LOG"
+  exit 1
+fi
+
+# Function to run the fuzzing tests on the endpoints
+run_fuzzers() {
+  local endpoints=$1
+  local report_file=$2
+  local found_issues=false
+
+  echo -e "\nRunning fuzzers on endpoints..." >> "$report_file"
+
+  # Iterate through each endpoint and simulate fuzzing
+  IFS=',' read -r -a endpoint_array <<< "$endpoints"
+  for endpoint in "\${endpoint_array[@]}"; do
+    # Create the full URL using the APPPORT and the endpoint
+    FULL_URL="http://localhost:\${APPPORT}/\${endpoint}"
+    
+    echo -e "Fuzzing endpoint: $FULL_URL" >> "$report_file"
+
+    # Basic fuzzing logic (just random characters for this demo)
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FULL_URL" -d "@<(echo $RANDOM)" -X POST)
+    
+    # You could add more detailed checks here to look for crashes or vulnerabilities
+    if [[ "$RESPONSE" -eq 500 || "$RESPONSE" -eq 400 ]]; then
+      echo "Potential issue or crash found at endpoint: $FULL_URL (HTTP $RESPONSE)" >> "$report_file"
+      found_issues=true
+    else
+      echo "No issues found at endpoint: $FULL_URL" >> "$report_file"
+    fi
+  done
+
+  # If no issues are found, log that information
+  if [ "$found_issues" = false ]; then
+    echo "nothing found" >> "$report_file"
+  fi
+}
+
+# Run fuzzing tests on the given endpoints
+run_fuzzers "$ENDPOINTS" "$CPU_RAM_LOG"
+
+# Wait for the service to finish running (optional, you can stop it after a certain timeout)
+sleep 3
+kill -9 $SERVICE_PID
+
+echo "Web service has finished. Fuzzer results and resource usage can be found in $CPU_RAM_LOG"`;
 
 // This method is called when your extension is activated
 export async function activate(context: vscode.ExtensionContext) {
@@ -138,6 +284,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (!fs.existsSync(databaseFolder)) {
 		fs.mkdirSync(databaseFolder, { recursive: true });
 		await writeFile(path.join(reposhieldPath, 'Dockerfile'), DOCKERFILE_CONTENT);
+		await writeFile(path.join(reposhieldPath, 'analyze.sh'), ANALYZE_SH_CONTENT);
 		vscode.window.showInformationMessage('Created "codeql-database" directory in the workspace.');
 	}
 
