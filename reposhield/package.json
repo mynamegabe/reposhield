@@ -1,0 +1,89 @@
+{
+  "name": "reposhield",
+  "displayName": "RepoShield",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionDependencies": [],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Gemini API Key",
+      "properties": {
+        "reposhield.apiKey": {
+          "type": "string",
+          "default": "undefined",
+          "description": "The API key for Gemini"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "reposhieldContainer",
+          "title": "RepoShield",
+          "icon": "resources/test.png"
+        }
+      ]
+    },
+    "views": {
+      "reposhieldContainer": [
+        {
+          "id": "reposhieldProject",
+          "name": "RepoShield"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "reposhieldProject",
+        "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)\n[Read log](command:reposhield.readLog)\n\nRun dynamic analysis on the current workspace to find potential security vulnerabilities (docker required).\n[Run dynamic analysis (requires docker)](command:reposhield.dynamicanalysis)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "reposhield.scanWorkspace",
+        "title": "RepoShield: Scan whole workspace"
+      },
+      {
+        "command": "reposhield.readLog",
+        "title": "RepoShield: Read Log"
+      },
+      {
+        "command": "reposhield.dynamicanalysis",
+        "title": "RepoShield: Run dynamic analysis on the workspace (docker required)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/unzipper": "^0.10.10",
+    "@types/vscode": "^1.97.0",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "re2": "^1.21.4",
+    "unzipper": "^0.12.3"
+  }
+}
