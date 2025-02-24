@@ -39,10 +39,22 @@ export async function executeCommand(
 }
 
 
-export async function cleanDockerContainer() {
-    let command =  `docker rm -f ${SANDBOX_CONTAINER_NAME}`;
+export async function cleanCodeqlContainer() {
+    let command =  `docker rm -f ${CODEQL_CONTAINER_NAME}`;
 
-    await executeCommand(command, 'Clean up docker container');
+    await executeCommand(command, 'Cleaned up codeql docker container');
+}
+
+export async function cleanSandboxContainer() {
+    let command = `docker rm -f ${SANDBOX_CONTAINER_NAME}`;
+
+    await executeCommand(command, 'Cleaned up sandbox docker container');
+}
+
+export async function cleanNucleiContainer() {
+    let command = `docker rm -f projectdiscovery/nuclei`;
+
+    await executeCommand(command, 'Cleaned up nuclei docker container');
 }
 
 export async function codeqlScan(): Promise<boolean> {

@@ -37,6 +37,10 @@
         {
           "id": "reposhieldProject",
           "name": "RepoShield"
+        },
+        {
+          "id": "reposhieldConfigs",
+          "name": "Configuration"
         }
       ]
     },
@@ -44,6 +48,10 @@
       {
         "view": "reposhieldProject",
         "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)\n[Read log](command:reposhield.readLog)\n\nRun dynamic analysis on the current workspace to find potential security vulnerabilities (docker required).\n[Run dynamic analysis (requires docker)](command:reposhield.dynamicanalysis) \n\nRun nuclei templates on the current workspace to find potential security vulnerabilities (docker required).\n[Run nuclei templates (requires docker)](command:reposhield.nuclei) \n\n"
+      },
+      {
+        "view": "reposhieldConfigs",
+        "contents": "A Google Gemini API key is required before running dynamic analysis. Configure your API key in the settings:\n[Settings](command:reposhield.settings)"
       }
     ],
     "commands": [
@@ -62,6 +70,10 @@
       {
         "command": "reposhield.nuclei",
         "title": "RepoShield: Run nuclei templates on the workspace (docker required)"
+      },
+      {
+        "command": "reposhield.settings",
+        "title": "RepoShield: Configure reposhield settings"
       }
     ]
   },
