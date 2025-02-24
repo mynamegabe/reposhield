@@ -242,6 +242,13 @@ export async function activate(context: vscode.ExtensionContext) {
             cleanNucleiContainer();
             console.log("User canceled the long running operation");
           });
+
+          if (!fs.existsSync(path.join(reposhieldPath, "endpoints.json"))) {
+            vscode.window.showErrorMessage(
+              "Please run 'Scan Workspace' command first."
+            );
+            return;
+          }
           const endpoints = JSON.parse(
             fs.readFileSync(
               path.join(reposhieldPath, "endpoints.json"),
@@ -261,7 +268,9 @@ export async function activate(context: vscode.ExtensionContext) {
             path.join(reposhieldPath, "endpoints.json")
           );
 
-          await runNucleiDocker(templateDirectory, targetPort);
+          const composeDirectory = path.join(context.extensionPath, "resources");
+
+          await runNucleiDocker(composeDirectory, templateDirectory, targetPort);
           vscode.window.showInformationMessage("Scanning complete");
         }
       );

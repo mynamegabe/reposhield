@@ -212,11 +212,16 @@ async function activate(context) {
                 (0, cmd_1.cleanNucleiContainer)();
                 console.log("User canceled the long running operation");
             });
+            if (!fs.existsSync(path.join(reposhieldPath, "endpoints.json"))) {
+                vscode.window.showErrorMessage("Please run 'Scan Workspace' command first.");
+                return;
+            }
             const endpoints = JSON.parse(fs.readFileSync(path.join(reposhieldPath, "endpoints.json"), "utf-8"));
             const targetPort = endpoints.port;
             const templateDirectory = path.join(context.extensionPath, "resources", "nuclei", "templates");
             await (0, nuclei_1.generateNucleiTemplates)(templateDirectory, path.join(reposhieldPath, "endpoints.json"));
-            await (0, cmd_1.runNucleiDocker)(templateDirectory, targetPort);
+            const composeDirectory = path.join(context.extensionPath, "resources");
+            await (0, cmd_1.runNucleiDocker)(composeDirectory, templateDirectory, targetPort);
             vscode.window.showInformationMessage("Scanning complete");
         });
     });

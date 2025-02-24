@@ -40,7 +40,7 @@ export async function executeCommand(
 
 
 export async function cleanCodeqlContainer() {
-    let command =  `docker rm -f ${CODEQL_CONTAINER_NAME}`;
+    let command = `docker rm -f ${CODEQL_CONTAINER_NAME}`;
 
     await executeCommand(command, 'Cleaned up codeql docker container');
 }
@@ -123,7 +123,7 @@ export async function runSandbox(): Promise<boolean> {
     return true;
 }
 
-export async function runNucleiDocker(templateDirectory: string, targetPort: string): Promise<boolean> {
+export async function runNucleiDocker(composeDirectory: string, templateDirectory: string, targetPort: string): Promise<boolean> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
@@ -133,10 +133,18 @@ export async function runNucleiDocker(templateDirectory: string, targetPort: str
 
     // command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
     // command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
+
     // modify docker-compose.yaml to specify workspace folder
-    
+    // replace ||workspaceFolder|| with workspace folder path
+    const composeFile = path.join(composeDirectory, 'docker-compose.yaml');
+    let composeContent = await vscode.workspace.fs.readFile(vscode.Uri.file(composeFile));
+    let composeString = new TextDecoder().decode(composeContent);
+    composeString = composeString.replace('||workspaceFolder||', workspaceFolder.uri.fsPath);
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), new TextEncoder().encode(composeString));
+
+
     let command = `docker-compose up --build`;
-    await executeCommand(command, 'Running docker container', reposhieldPath);
+    await executeCommand(command, 'Running docker container', composeDirectory);
 
     return true;
 }
