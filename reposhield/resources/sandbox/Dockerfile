@@ -56,6 +56,7 @@ ENV PATH="$PATH:/opt/gradle/gradle-${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/
 # RUN unzip -d /root/scripts /tmp/analyze.zip
 COPY analyze.sh /root/scripts/analyze.sh
 RUN chmod +x /root/scripts/analyze.sh
+RUN dos2unix /root/scripts/analyze.sh
 
 # Execute analyze script
 WORKDIR /root/
