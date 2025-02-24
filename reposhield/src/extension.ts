@@ -153,8 +153,6 @@ export async function activate(context: vscode.ExtensionContext) {
     "reposhield.scanWorkspace",
     async () => {
       try {
-        vscode.window.showInformationMessage("Running CodeQL scan on workspace...");
-
         const endpoints = await extractEndpoints();
         // write endpoints to a json file
         fs.writeFileSync(

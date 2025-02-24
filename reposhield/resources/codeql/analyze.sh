@@ -137,20 +137,30 @@ create_database() {
         print_green "[Running] Creating DB: codeql database create --threads=$THREADS --language=$LANGUAGE $DB -s $SRC $OVERWRITE_FLAG"
         codeql database create --threads=$THREADS --language=$LANGUAGE $DB -s $SRC $OVERWRITE_FLAG
     fi
+    codeql database finalize $DB
     if [[ $? -ne 0 && $? -ne 2 ]]; then # ignore unempty database
         print_red "[Error]: Codeql create database failed."
         finalize
         exit 6
+    else
+        print_green "[Success]: Codeql create database successfully."
     fi
 }
 
 scan() {
-    print_green "[Running] Start Scanning: codeql database analyze --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.$FORMAT $DB $QS"
-    codeql database analyze --off-heap-ram=0 --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.$FORMAT $DB $QS
+    print_green "[Running] Start Scanning: codeql database analyze --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.sarif $DB $QS"
+    codeql database analyze --off-heap-ram=0 --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.sarif $DB $QS
     if [ $? -ne 0 ]; then
         print_red "[!] CodeQL analyze failed."
         finalize
         exit 7
+    fi
+}
+
+finalize() {
+    if [[ $USERID && $GROUPID ]]; then
+        chown -R $USERID:$GROUPID $OUTPUT
+        chown -R $USERID:$GROUPID $SRC
     fi
 }
 
@@ -161,6 +171,7 @@ main() {
         create_database
         scan
     fi
+    finalize
     echo "[Complete]"
 }
 

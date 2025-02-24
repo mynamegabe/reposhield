@@ -52,7 +52,7 @@ RUN gem install github-linguist
 RUN wget -q -O - https://raw.githubusercontent.com/canha/golang-tools-install-script/master/goinstall.sh | bash
 
 # Install latest codeQL
-ENV CODEQL_HOME /root/codeql-home
+ENV CODEQL_HOME=/root/codeql-home
 
 # Get CodeQL verion
 RUN curl --silent "https://api.github.com/repos/github/codeql-cli-binaries/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' > /tmp/codeql_version
@@ -71,8 +71,9 @@ RUN CODEQL_BUNDLE_VERSION=$(cat /tmp/codeql_bundle_version) && \
     rm /tmp/codeql_linux.tar.gz
 
 ENV PATH="$PATH:${CODEQL_HOME}/codeql:/opt/gradle/gradle-${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-RUN mkdir /root/scripts
 COPY analyze.sh /root/scripts/analyze.sh
+RUN chmod +x /root/scripts/analyze.sh
+RUN dos2unix /root/scripts/analyze.sh
 
 # Execute analyze script
 WORKDIR /root/
