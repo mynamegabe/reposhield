@@ -170,7 +170,7 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log("User cancelled the long running operation");
           });
           await codeqlScan();
-          let resultPath = path.join(reposhieldPath, 'result.sarif');
+          let resultPath = path.join(reposhieldPath, 'results.sarif');
           openSarifViewerPannel(resultPath);
           vscode.window.showInformationMessage("Scanning complete");
         });
@@ -284,7 +284,6 @@ async function openSarifViewerPannel(filePath: string) {
         });
       return false;
     }
-    vscode.window.showInformationMessage(`Opening log in Sarif Viewer...`);
     if (!sarifExt.isActive) await sarifExt.activate();
     await sarifExt.exports.openLogs([vscode.Uri.file(filePath)]);
   } catch (err) {
