@@ -15,7 +15,7 @@ router = APIRouter(
 )
 
 
-@router.get("/file")
+@router.get("/")
 async def read_file(filename: str):
     try:
         with open(f'files/{filename}', 'r') as file:

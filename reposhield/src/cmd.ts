@@ -83,8 +83,8 @@ export async function runNucleiDocker(templateDirectory: string, targetPort: str
 
     await executeCommand(command, 'Pulling docker container', reposhieldPath);
 
-    command = `docker run --rm -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
-    await executeCommand(command, 'Running docker container', reposhieldPath);
+    command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
+    await executeCommand(command, 'Running docker containernee', reposhieldPath);
 
     return true;
 }
