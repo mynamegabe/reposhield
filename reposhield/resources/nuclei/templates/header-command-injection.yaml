@@ -18,7 +18,7 @@ http:
       - |
         GET /?{{header}} HTTP/1.1
         Host: {{Hostname}}
-        {{header}}: {{payload}}
+        {{param}}: {{payload}}
 
     payloads:
       header: helpers/payloads/request-headers.txt
