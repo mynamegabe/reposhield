@@ -112,7 +112,7 @@ async function extractEndpoints() {
     const routes = await extractRoutesParams(pythonFiles);
     return routes;
 }
-console.log(getConfigValue("reposhield", "APIKey"));
+// console.log(getConfigValue("reposhield", "APIKey"));
 const genAI = new generative_ai_1.GoogleGenerativeAI(getConfigValue("reposhield", "APIKey"));
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // This method is called when your extension is activated
@@ -129,11 +129,9 @@ async function activate(context) {
     }
     const reposhieldPath = path.join(workspaceFolder.uri.fsPath, ".reposhield");
     // Define the path for the CodeQL database
-    const databaseFolder = path.join(reposhieldPath, "codeql-database");
     const sandboxFolder = path.join(reposhieldPath, "sandbox");
     const codeqlFolder = path.join(reposhieldPath, "codeql");
     if (!fs.existsSync(reposhieldPath)) {
-        fs.mkdirSync(databaseFolder, { recursive: true });
         fs.mkdirSync(sandboxFolder, { recursive: true });
         fs.mkdirSync(codeqlFolder, { recursive: true });
         await writeFile(path.join(sandboxFolder, "Dockerfile"), SANDBOX_DOCKER_CONTENT);
@@ -142,12 +140,24 @@ async function activate(context) {
         await writeFile(path.join(codeqlFolder, "analyze.sh"), CODEQL_ANALYZE_CONTENT);
         vscode.window.showInformationMessage('Created "codeql-database" directory in the workspace.');
     }
+    // Build containers
+    vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: `Building containers...`,
+        cancellable: true
+    }, async (progress, token) => {
+        token.onCancellationRequested(() => {
+            (0, cmd_1.cleanCodeqlContainer)();
+            (0, cmd_1.cleanNucleiContainer)();
+            (0, cmd_1.cleanSandboxContainer)();
+            console.log("User cancelled the long running operation");
+        });
+        await (0, cmd_1.buildContainers)();
+        vscode.window.showInformationMessage("Containers built!");
+    });
     // Register the command to scan the whole workspace/folder
     const disposableFolderScan = vscode.commands.registerCommand("reposhield.scanWorkspace", async () => {
         try {
-            vscode.window.showInformationMessage("Creating CodeQL database...");
-            // write endpoints to a json file
-            // fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
             const endpoints = await extractEndpoints();
             // write endpoints to a json file
             fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
@@ -157,11 +167,11 @@ async function activate(context) {
                 cancellable: true
             }, async (progress, token) => {
                 token.onCancellationRequested(() => {
-                    (0, cmd_1.cleanDockerContainer)();
-                    console.log("User canceled the long running operation");
+                    (0, cmd_1.cleanCodeqlContainer)();
+                    console.log("User cancelled the long running operation");
                 });
                 await (0, cmd_1.codeqlScan)();
-                let resultPath = path.join(reposhieldPath, 'result.sarif');
+                let resultPath = path.join(reposhieldPath, 'results.sarif');
                 openSarifViewerPannel(resultPath);
                 vscode.window.showInformationMessage("Scanning complete");
             });
@@ -185,11 +195,11 @@ async function activate(context) {
             cancellable: true,
         }, async (progress, token) => {
             token.onCancellationRequested(() => {
-                (0, cmd_1.cleanDockerContainer)();
-                console.log("User canceled the long running operation");
+                (0, cmd_1.cleanSandboxContainer)();
+                console.log("User cancelled the long running operation");
             });
             await (0, cmd_1.runSandbox)();
-            vscode.window.showInformationMessage("Scanning complete");
+            vscode.window.showInformationMessage("Scanning completed!");
         });
     });
     const disposableNuclei = vscode.commands.registerCommand("reposhield.nuclei", async () => {
@@ -199,7 +209,7 @@ async function activate(context) {
             cancellable: true,
         }, async (progress, token) => {
             token.onCancellationRequested(() => {
-                (0, cmd_1.cleanDockerContainer)();
+                (0, cmd_1.cleanNucleiContainer)();
                 console.log("User canceled the long running operation");
             });
             const endpoints = JSON.parse(fs.readFileSync(path.join(reposhieldPath, "endpoints.json"), "utf-8"));
@@ -210,10 +220,14 @@ async function activate(context) {
             vscode.window.showInformationMessage("Scanning complete");
         });
     });
+    const disposableSettings = vscode.commands.registerCommand('reposhield.settings', async () => {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'reposhield');
+    });
     context.subscriptions.push(disposableDynamic);
     context.subscriptions.push(disposableReadLog);
     context.subscriptions.push(disposableFolderScan);
     context.subscriptions.push(disposableNuclei);
+    context.subscriptions.push(disposableSettings);
 }
 async function openSarifViewerPannel(filePath) {
     try {
@@ -228,7 +242,6 @@ async function openSarifViewerPannel(filePath) {
             });
             return false;
         }
-        vscode.window.showInformationMessage(`Opening log in Sarif Viewer...`);
         if (!sarifExt.isActive)
             await sarifExt.activate();
         await sarifExt.exports.openLogs([vscode.Uri.file(filePath)]);
