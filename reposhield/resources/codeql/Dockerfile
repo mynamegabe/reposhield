@@ -71,7 +71,7 @@ RUN CODEQL_BUNDLE_VERSION=$(cat /tmp/codeql_bundle_version) && \
     rm /tmp/codeql_linux.tar.gz
 
 ENV PATH="$PATH:${CODEQL_HOME}/codeql:/opt/gradle/gradle-${GRADLE_VERSION}/bin:/root/go/bin:/root/.go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-MKDIR /root/scripts
+RUN mkdir /root/scripts
 COPY analyze.sh /root/scripts/analyze.sh
 
 # Execute analyze script
