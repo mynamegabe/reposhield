@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as unzipper from "unzipper";
 import * as os from "os";
-import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer } from "./cmd";
+import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer, buildContainers } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { generateNucleiTemplates } from "./nuclei";
 
@@ -99,7 +99,7 @@ async function extractEndpoints(): Promise<{
   return routes;
 }
 
-console.log(getConfigValue("reposhield", "APIKey"));
+// console.log(getConfigValue("reposhield", "APIKey"));
 const genAI = new GoogleGenerativeAI(getConfigValue("reposhield", "APIKey"));
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -147,6 +147,22 @@ export async function activate(context: vscode.ExtensionContext) {
       'Created "codeql-database" directory in the workspace.'
     );
   }
+
+  // Build containers
+  vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Building containers...`,
+    cancellable: true
+  }, async (progress, token) => {
+    token.onCancellationRequested(() => {
+      cleanCodeqlContainer();
+      cleanNucleiContainer();
+      cleanSandboxContainer();
+      console.log("User cancelled the long running operation");
+    });
+    await buildContainers();
+    vscode.window.showInformationMessage("Containers built!");
+  });
 
   // Register the command to scan the whole workspace/folder
   const disposableFolderScan = vscode.commands.registerCommand(

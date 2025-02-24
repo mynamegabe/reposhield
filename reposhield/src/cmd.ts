@@ -57,6 +57,29 @@ export async function cleanNucleiContainer() {
     await executeCommand(command, 'Cleaned up nuclei docker container');
 }
 
+export async function buildContainers(): Promise<boolean> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+
+    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
+    let codeqlPath = path.join(reposhieldPath, 'codeql');
+    let sandboxPath = path.join(reposhieldPath, 'sandbox');
+    let nucleiPath = path.join(reposhieldPath, 'nuclei');
+
+    let command = `docker build -t ${SANDBOX_CONTAINER_NAME} .`;
+    await executeCommand(command, 'Building sandbox docker container', sandboxPath);
+
+    command = `docker build -t ${CODEQL_CONTAINER_NAME} .`;
+    await executeCommand(command, 'Building codeql docker container', codeqlPath);
+
+    command = `docker pull projectdiscovery/nuclei:latest`;
+    await executeCommand(command, 'Pulling nuclei docker container', nucleiPath);
+
+    return true;
+}
+
 export async function codeqlScan(): Promise<boolean> {
     // let dockerPath = await projectConfiguration.getDockerPath();
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -64,14 +87,11 @@ export async function codeqlScan(): Promise<boolean> {
         throw new Error('No workspace folder found');
     }
 
-    let command = `docker build -t ${CODEQL_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
     let codeqlPath = path.join(reposhieldPath, 'codeql');
 
-    await executeCommand(command, 'Building codeql docker container', codeqlPath);
-  
-    // command = `docker run --rm --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
-    command = `docker run --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e "USERID=1000" -e "GROUPID=1000" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
+    let command = `docker run --rm --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
+    // let command = `docker run --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e "USERID=1000" -e "GROUPID=1000" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
 
     await executeCommand(command, 'Codeql scan', codeqlPath);
 
@@ -84,11 +104,9 @@ export async function runSandbox(): Promise<boolean> {
         throw new Error('No workspace folder found');
     }
 
-    let command = `docker build -t ${SANDBOX_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
     let sandboxPath = path.join(reposhieldPath, 'sandbox');
 
-    await executeCommand(command, 'Building sandbox docker container', sandboxPath);
     let envs = [];
     // Hardcoded for now for testing
     envs.push(
@@ -99,15 +117,13 @@ export async function runSandbox(): Promise<boolean> {
     );
     const envString = envs.join(' ');
 
-    command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
+    let command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
     await executeCommand(command, 'Running docker container', sandboxPath);
 
     return true;
 }
 
 export async function runNucleiDocker(templateDirectory: string, targetPort: string): Promise<boolean> {
-    let command = `docker pull projectdiscovery/nuclei:latest`;
-
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
@@ -115,10 +131,8 @@ export async function runNucleiDocker(templateDirectory: string, targetPort: str
 
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
 
-    await executeCommand(command, 'Pulling docker container', reposhieldPath);
-
     // command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
-    command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
+    let command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
     await executeCommand(command, 'Running docker container', reposhieldPath);
 
     return true;
