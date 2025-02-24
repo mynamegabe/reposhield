@@ -136,7 +136,8 @@ async function runNucleiDocker(templateDirectory, targetPort) {
     }
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
     // command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
-    // let command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
+    // command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
+    // modify docker-compose.yaml to specify workspace folder
     let command = `docker-compose up --build`;
     await executeCommand(command, 'Running docker container', reposhieldPath);
     return true;

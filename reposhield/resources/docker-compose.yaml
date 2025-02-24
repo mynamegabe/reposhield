@@ -1,0 +1,43 @@
+version: '3.8'
+services:
+  # envs.push(
+  #         `-e "EXECMD=python app.py"`,
+  #         `-e "APPPORT=5000"`,
+  #         `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`,
+  #         `-e "LANGUAGE=python"`,
+  #     );
+  #     const envString = envs.join(' ');
+
+  #     command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
+  api:
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    links:
+      - nuclei_runner
+    volumes:
+      - ||workspaceFolder||:/opt/src
+    environment:
+      - EXECMD=python app.py
+      - APPPORT=8000
+      - ENDPOINTS=getrace,racetrack,dist,gimmeflag,test
+      - LANGUAGE=python
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+  # docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/
+  nuclei_runner:
+    image: projectdiscovery/nuclei
+    volumes:
+      - ./templates:/app/templates
+      - ./results:/app/results
+    command: -jsonl /app/results/results.jsonl -u http://api:8000 -t /app/templates/
+    links:
+      - api
+    depends_on:
+      api:
+        condition: service_healthy
