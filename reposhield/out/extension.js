@@ -399,8 +399,9 @@ async function activate(context) {
             //     }
             //   });
             // }
-            const endpoints = await extractEndpoints();
-            console.log(endpoints);
+            // const endpoints = await extractEndpoints();
+            // write endpoints to a json file
+            fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
         }
         catch (error) {
             vscode.window.showErrorMessage(`Error: ${error.message}`);

@@ -435,9 +435,11 @@ export async function activate(context: vscode.ExtensionContext) {
         //   });
         // }
 
-        const endpoints = await extractEndpoints();
-        console.log(endpoints);
-      } catch (error: any) {
+        // const endpoints = await extractEndpoints();
+		
+		// write endpoints to a json file
+		fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
+	} catch (error: any) {
         vscode.window.showErrorMessage(`Error: ${error.message}`);
       }
     }
