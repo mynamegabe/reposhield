@@ -36,13 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.executeCommand = executeCommand;
 exports.cleanDockerContainer = cleanDockerContainer;
 exports.codeqlScan = codeqlScan;
-exports.runDocker = runDocker;
+exports.runSandbox = runSandbox;
 exports.runNucleiDocker = runNucleiDocker;
 const cp = __importStar(require("child_process"));
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 let OVERWRITE_FLAG = false;
-let DOCKER_CONTAINER_NAME = 'reposhield_analysis';
+let SANDBOX_CONTAINER_NAME = 'reposhield-sandbox';
+let CODEQL_CONTAINER_NAME = 'reposhield-codeql';
 async function executeCommand(command, description, cwd = '.') {
     // Add logging arguments first, in case commandArgs contains positional parameters.
     // const args = command.concat(commandArgs);
@@ -69,7 +70,7 @@ async function executeCommand(command, description, cwd = '.') {
     }
 }
 async function cleanDockerContainer() {
-    let command = `docker rm -f ${DOCKER_CONTAINER_NAME}`;
+    let command = `docker rm -f ${SANDBOX_CONTAINER_NAME}`;
     await executeCommand(command, 'Clean up docker container');
 }
 async function codeqlScan() {
@@ -78,27 +79,30 @@ async function codeqlScan() {
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
-    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
+    let command = `docker build -t ${CODEQL_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
-    await executeCommand(command, 'Building codeql docker container', reposhieldPath);
-    command = `docker run --rm --name reposhield-codeql -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" reposhield-codeql`;
-    await executeCommand(command, 'Codeql scan');
+    let codeqlPath = path.join(reposhieldPath, 'codeql');
+    await executeCommand(command, 'Building codeql docker container', codeqlPath);
+    // command = `docker run --rm --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
+    command = `docker run --name ${CODEQL_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" ${CODEQL_CONTAINER_NAME}`;
+    await executeCommand(command, 'Codeql scan', codeqlPath);
     return true;
 }
-async function runDocker() {
+async function runSandbox() {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
-    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
+    let command = `docker build -t ${SANDBOX_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
-    await executeCommand(command, 'Building sandbox docker container', reposhieldPath);
+    let sandboxPath = path.join(reposhieldPath, 'sandbox');
+    await executeCommand(command, 'Building sandbox docker container', sandboxPath);
     let envs = [];
     // Hardcoded for now for testing
     envs.push(`-e "EXECMD=python app.py"`, `-e "APPPORT=5000"`, `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`, `-e "LANGUAGE=python"`);
     const envString = envs.join(' ');
-    command = `docker run --rm --name ${DOCKER_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${DOCKER_CONTAINER_NAME}`;
-    await executeCommand(command, 'Running docker container', reposhieldPath);
+    command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
+    await executeCommand(command, 'Running docker container', sandboxPath);
     return true;
 }
 async function runNucleiDocker(templateDirectory, targetPort) {

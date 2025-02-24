@@ -36,12 +36,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
-const cp = __importStar(require("child_process"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
-const https = __importStar(require("https"));
-const unzipper = __importStar(require("unzipper"));
-const os = __importStar(require("os"));
 const cmd_1 = require("./cmd");
 const generative_ai_1 = require("@google/generative-ai");
 const nuclei_1 = require("./nuclei");
@@ -126,33 +122,6 @@ async function activate(context) {
     const SANDBOX_ANALYZE_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
     const CODEQL_DOCKER_CONTENT = readInternalFile(context, "codeql/Dockerfile");
     const CODEQL_ANALYZE_CONTENT = readInternalFile(context, "codeql/analyze.sh");
-    let codeqlPath = await getConfigValue("codeQL", "executablePath");
-    if (codeqlPath === "undefined") {
-        codeqlPath = os.homedir() + "\\codeql";
-    }
-    const codeqlBinPath = path.join(codeqlPath, "codeql");
-    // Check if CodeQL is installed
-    await setCodeQLPath(os.homedir() + "\\codeql");
-    const codeqlInstalled = await isCodeQLInstalled();
-    if (!codeqlInstalled) {
-        vscode.window.showInformationMessage("CodeQL is not installed. The extension will now attempt to download and install CodeQL.");
-        try {
-            const codeqlPath = await downloadCodeQL();
-            const platform = process.platform;
-            let codeqlexepath;
-            if (platform == "win32") {
-                codeqlexepath = path.join(codeqlPath, "codeql.exe");
-            }
-            else {
-                codeqlexepath = path.join(codeqlPath, "codeql");
-            }
-            vscode.window.showInformationMessage(`CodeQL has been installed at: ${codeqlPath}`);
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`Error downloading CodeQL: ${error.message}`);
-            return; // Exit activation if installation fails
-        }
-    }
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showErrorMessage("No workspace folder found.");
@@ -219,7 +188,7 @@ async function activate(context) {
                 (0, cmd_1.cleanDockerContainer)();
                 console.log("User canceled the long running operation");
             });
-            await (0, cmd_1.runDocker)();
+            await (0, cmd_1.runSandbox)();
             vscode.window.showInformationMessage("Scanning complete");
         });
     });
@@ -245,54 +214,6 @@ async function activate(context) {
     context.subscriptions.push(disposableReadLog);
     context.subscriptions.push(disposableFolderScan);
     context.subscriptions.push(disposableNuclei);
-}
-// Run a command using child process
-async function analyzeDatabase(databaseFolder, workspaceFolder, reposhieldPath) {
-    fs.readFile(path.join(databaseFolder, "baseline-info.json"), "utf8", (err, data) => {
-        if (err) {
-            console.error("Error reading the file:", err);
-            return;
-        }
-        try {
-            const parsedData = JSON.parse(data);
-            const languages = Object.keys(parsedData["languages"]);
-            let command = `codeql database analyze "${databaseFolder}"`;
-            languages.forEach((language) => {
-                command += ` codeql/${language}-queries`;
-            });
-            command += ` --format=sarifv2.1.0 --output="${reposhieldPath}\\results.sarif" --download`;
-            vscode.window.showInformationMessage("Analyzing database... (this may take a while)");
-            console.log("Command: ", command);
-            const analyzeDatabaseProcess = cp.exec(command, {
-                cwd: workspaceFolder.uri.fsPath,
-            });
-            if (analyzeDatabaseProcess !== null &&
-                analyzeDatabaseProcess.stdout !== null &&
-                analyzeDatabaseProcess.stderr !== null) {
-                analyzeDatabaseProcess.stdout.on("data", (data) => {
-                    console.log(data);
-                });
-                analyzeDatabaseProcess.stderr.on("data", (error) => {
-                    console.error("Running... (ignore these errors)", error);
-                });
-                analyzeDatabaseProcess.on("close", async (code) => {
-                    if (code === 0) {
-                        vscode.window.showInformationMessage(`CodeQL database analyzed successfully!`);
-                        console.log("Opening log");
-                        await openSarifViewerPannel(path.join(reposhieldPath, "results.sarif"));
-                        console.log("Done Opening log");
-                    }
-                    else {
-                        vscode.window.showErrorMessage(`CodeQL database analysis failed with exit code ${code}`);
-                    }
-                });
-            }
-        }
-        catch (err) {
-            console.error("Error parsing JSON:", err);
-            return;
-        }
-    });
 }
 async function openSarifViewerPannel(filePath) {
     try {
@@ -335,106 +256,6 @@ async function writeFile(filePath, fileContent) {
         }
         console.log(`File created successfully at: ${filePath}`);
     });
-}
-// Function to check if CodeQL is installed
-async function isCodeQLInstalled() {
-    return new Promise((resolve) => {
-        cp.exec("codeql --version", (error) => {
-            resolve(!error); // if no error, it means CodeQL is installed
-        });
-    });
-}
-async function isNucleiInstalled() {
-    return new Promise((resolve) => {
-        cp.exec("nuclei -version", (error) => {
-            resolve(!error); // if no error, it means Nuclei is installed
-        });
-    });
-}
-// Download CodeQL and extract it to a directory
-async function downloadCodeQL() {
-    const downloadUrl = await getDownloadUrlForPlatform(); // Modify this URL for your platform
-    // Use a global directory for CodeQL (e.g., home directory or a dedicated folder like ~/.codeql or C:\CodeQL)
-    const globalCodeQLDirectory = os.homedir() + "\\codeql"; // For example, ~\.codeql or /home/user/.codeql
-    // Ensure the directory exists
-    if (fs.existsSync(globalCodeQLDirectory)) {
-        console.log("CodeQL directory already exists.");
-        return globalCodeQLDirectory;
-    }
-    // Follow the redirect and download the file
-    return new Promise((resolve, reject) => {
-        https
-            .get(downloadUrl, (res) => {
-            if (res.statusCode === 302 || res.statusCode === 301) {
-                const redirectUrl = res.headers.location;
-                console.log(`Redirecting to: ${redirectUrl}`);
-                if (redirectUrl) {
-                    https
-                        .get(redirectUrl, (redirectRes) => {
-                        if (redirectRes.statusCode !== 200) {
-                            return reject(new Error(`Failed to download CodeQL. Status Code: ${redirectRes.statusCode}`));
-                        }
-                        // Pipe the file to the extraction location
-                        redirectRes
-                            .pipe(unzipper.Extract({ path: os.homedir() }))
-                            .on("close", async () => {
-                            console.log("CodeQL downloaded and extracted.");
-                            resolve(globalCodeQLDirectory);
-                        })
-                            .on("error", async (err) => {
-                            console.error("Error during extraction:", err);
-                            reject(err);
-                        });
-                    })
-                        .on("error", (err) => {
-                        console.error("Error following redirect:", err);
-                        reject(err);
-                    });
-                }
-                else {
-                    return reject(new Error("Redirect URL is undefined."));
-                }
-            }
-            else if (res.statusCode === 200) {
-                // If there's no redirection (direct file download)
-                res
-                    .pipe(unzipper.Extract({ path: os.homedir() }))
-                    .on("close", async () => {
-                    console.log("CodeQL downloaded and extracted.");
-                    resolve(globalCodeQLDirectory);
-                })
-                    .on("error", (err) => {
-                    console.error("Error during extraction:", err);
-                    reject(err);
-                });
-            }
-            else {
-                return reject(new Error(`Failed to download CodeQL. Status Code: ${res.statusCode}`));
-            }
-        })
-            .on("error", (err) => {
-            console.error("Error during download:", err);
-            reject(err);
-        });
-    });
-}
-async function setCodeQLPath(codeqlPath) {
-    process.env.PATH = `${process.env.PATH}${codeqlPath}`;
-}
-async function getDownloadUrlForPlatform() {
-    const platform = process.platform;
-    if (platform === "win32") {
-        return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-win64.zip";
-    }
-    else if (platform === "darwin") {
-        return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-osx64.zip";
-    }
-    else if (platform === "linux") {
-        return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-linux64.zip";
-    }
-    else {
-        throw new Error("Unsupported platform");
-    }
 }
 // This method is called when your extension is deactivated
 async function deactivate() { }

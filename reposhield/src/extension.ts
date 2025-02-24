@@ -316,26 +316,5 @@ async function writeFile(filePath: string, fileContent: string) {
   });
 }
 
-async function isNucleiInstalled(): Promise<boolean> {
-  return new Promise((resolve) => {
-    cp.exec("nuclei -version", (error) => {
-      resolve(!error); // if no error, it means Nuclei is installed
-    });
-  });
-}
-
-async function getDownloadUrlForPlatform(): Promise<string> {
-  const platform = process.platform;
-  if (platform === "win32") {
-    return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-win64.zip";
-  } else if (platform === "darwin") {
-    return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-osx64.zip";
-  } else if (platform === "linux") {
-    return "https://github.com/github/codeql-cli-binaries/releases/download/v2.20.4/codeql-linux64.zip";
-  } else {
-    throw new Error("Unsupported platform");
-  }
-}
-
 // This method is called when your extension is deactivated
 export async function deactivate() {}
