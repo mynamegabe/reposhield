@@ -19,40 +19,64 @@ function getConfigValue(configuration: string, setting: string): string {
 }
 
 async function getPythonFiles(): Promise<vscode.Uri[]> {
-    return await vscode.workspace.findFiles('**/*.py', '**/node_modules/**');
+  return await vscode.workspace.findFiles("**/*.py", "**/node_modules/**");
 }
 
 async function readPythonFiles(): Promise<{ [fileName: string]: string }> {
-    const files = await getPythonFiles();
-    const fileContents: { [fileName: string]: string } = {};
+  const files = await getPythonFiles();
+  const fileContents: { [fileName: string]: string } = {};
 
-    for (const file of files) {
-        try {
-            const content = await vscode.workspace.fs.readFile(file);
-            fileContents[file.fsPath] = Buffer.from(content).toString('utf8');
-        } catch (error) {
-            vscode.window.showErrorMessage(`Error reading file ${file.fsPath}: ${error}`);
-        }
+  for (const file of files) {
+    try {
+      const content = await vscode.workspace.fs.readFile(file);
+      fileContents[file.fsPath] = Buffer.from(content).toString("utf8");
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Error reading file ${file.fsPath}: ${error}`
+      );
     }
-    return fileContents;
+  }
+  return fileContents;
 }
 
-async function extractRoutesParams(fileContents: { [fileName: string]: string }): Promise<string[]> {
-	let prompt = "Analyse the following files and extract the API paths and parameters\n";
-	prompt += "Output in the format: [METHOD] /path/to/endpoint [PARAMS]\n\n";
-	prompt += "Example: [GET] /api/v1/users/:id\n\n";
-	prompt += "Example: [POST] /api/v1/users [name, email, password]\n\n";
-	const sourceCode = Object.values(fileContents).join('\n');
-	prompt += `Source code: ${sourceCode}\n\n`
-	const result = await model.generateContent(prompt);
-	console.log(result);
-	return result.response.text().split('\n');
+async function extractRoutesParams(fileContents: {
+  [fileName: string]: string;
+}): Promise<{ method: string; path: string; params: string[] }[]> {
+  let prompt =
+    "Analyse the following files and extract the API paths and parameters\n";
+  prompt += "Output in the format: [METHOD] /path/to/endpoint [PARAMS]\n\n";
+  prompt += "Strictly do not include any other information or text\n\n";
+  prompt += "Example: [GET] /api/v1/users/:id\n\n";
+  prompt += "Example: [POST] /api/v1/users [name, email, password]\n\n";
+  const sourceCode = Object.values(fileContents).join("\n");
+  prompt += `Source code: ${sourceCode}\n\n`;
+  const result = await model.generateContent(prompt);
+  console.log(result.response.text());
+  // return result.response.text().split('\n');
+  const paths = result.response.text().split("\n");
+  const routes: { method: string; path: string; params: string[] }[] = [];
+  // regex match results into {method, path, params}
+  const routeRegex = /\[(GET|POST|PUT|DELETE)\] ([^\s]+) \[([^\]]+)\]/;
+  for (const path of paths) {
+    const match = path.match(routeRegex);
+    if (match) {
+      const method = match[1];
+      const path = match[2];
+      const params = match[3].split(",").map((param) => param.trim());
+      routes.push({
+        method,
+        path,
+        params,
+      });
+    }
+  }
+  return routes;
 }
 
-async function extractEndpoints(): Promise<string[]> {
-	const pythonFiles = await readPythonFiles();
-	const routes = await extractRoutesParams(pythonFiles);
-	return routes;
+async function extractEndpoints(): Promise<{ method: string; path: string }[]> {
+  const pythonFiles = await readPythonFiles();
+  const routes = await extractRoutesParams(pythonFiles);
+  return routes;
 }
 
 // Needs revision
@@ -147,7 +171,7 @@ async function extractEndpoints(): Promise<string[]> {
 // # Install dependencies based on the LANGUAGE environment variable
 // WORKSPACE="/opt/src"
 
-// install_dependencies() {  
+// install_dependencies() {
 //   case "$LANGUAGE" in
 //     node)
 //       if [ -f "$WORKSPACE/package.json" ]; then
@@ -251,12 +275,12 @@ async function extractEndpoints(): Promise<string[]> {
 //   for endpoint in "\${endpoint_array[@]}"; do
 //     # Create the full URL using the APPPORT and the endpoint
 //     FULL_URL="http://localhost:\${APPPORT}/\${endpoint}"
-    
+
 //     echo -e "Fuzzing endpoint: $FULL_URL" >> "$report_file"
 
 //     # Basic fuzzing logic (just random characters for this demo)
 //     RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FULL_URL" -d "@<(echo $RANDOM)" -X POST)
-    
+
 //     # You could add more detailed checks here to look for crashes or vulnerabilities
 //     if [[ "$RESPONSE" -eq 500 || "$RESPONSE" -eq 400 ]]; then
 //       echo "Potential issue or crash found at endpoint: $FULL_URL (HTTP $RESPONSE)" >> "$report_file"
@@ -281,6 +305,7 @@ async function extractEndpoints(): Promise<string[]> {
 
 // echo "Web service has finished. Fuzzer results and resource usage can be found in $CPU_RAM_LOG"`;
 
+console.log(getConfigValue("reposhield", "APIKey"));
 const genAI = new GoogleGenerativeAI(getConfigValue("reposhield", "APIKey"));
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -292,7 +317,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const ANALYZE_SH_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
   let codeqlPath = await getConfigValue("codeQL", "executablePath");
   if (codeqlPath === "undefined") {
-	codeqlPath = os.homedir() + "\\codeql";
+    codeqlPath = os.homedir() + "\\codeql";
   }
   const codeqlBinPath = path.join(codeqlPath, "codeql");
 
@@ -313,12 +338,12 @@ export async function activate(context: vscode.ExtensionContext) {
       } else {
         codeqlexepath = path.join(codeqlPath, "codeql");
       }
-    //   const config = vscode.workspace.getConfiguration("codeQL");
-    //   await config.update(
-    //     "executablePath",
-    //     codeqlexepath,
-    //     vscode.ConfigurationTarget.Global
-    //   );
+      //   const config = vscode.workspace.getConfiguration("codeQL");
+      //   await config.update(
+      //     "executablePath",
+      //     codeqlexepath,
+      //     vscode.ConfigurationTarget.Global
+      //   );
       vscode.window.showInformationMessage(
         `CodeQL has been installed at: ${codeqlPath}`
       );
@@ -373,46 +398,45 @@ export async function activate(context: vscode.ExtensionContext) {
         // Run the CodeQL CLI to create the database
         vscode.window.showInformationMessage("Creating CodeQL database...");
 
-        // const command = `codeql database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
-		const command = `${codeqlBinPath} database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
-        console.log("Command: ", command);
-        const createDatabaseProcess = cp.exec(command, {
-          cwd: workspaceFolder.uri.fsPath,
-        });
-        if (
-          createDatabaseProcess !== null &&
-          createDatabaseProcess.stdout !== null &&
-          createDatabaseProcess.stderr !== null
-        ) {
-          createDatabaseProcess.stdout.on("data", (data) => {
-            console.log(data);
-          });
+        // // const command = `codeql database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
+        // const command = `${codeqlBinPath} database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
+        // console.log("Command: ", command);
+        // const createDatabaseProcess = cp.exec(command, {
+        //   cwd: workspaceFolder.uri.fsPath,
+        // });
+        // if (
+        //   createDatabaseProcess !== null &&
+        //   createDatabaseProcess.stdout !== null &&
+        //   createDatabaseProcess.stderr !== null
+        // ) {
+        //   createDatabaseProcess.stdout.on("data", (data) => {
+        //     console.log(data);
+        //   });
 
-          createDatabaseProcess.stderr.on("data", (error) => {
-            console.error(error);
-          });
+        //   createDatabaseProcess.stderr.on("data", (error) => {
+        //     console.error(error);
+        //   });
 
-          createDatabaseProcess.on("close", async (code) => {
-            if (code === 0) {
-              vscode.window.showInformationMessage(
-                `CodeQL database created successfully at ${databaseFolder}`
-              );
-              await analyzeDatabase(
-                databaseFolder,
-                workspaceFolder,
-                reposhieldPath
-              );
-            } else {
-              vscode.window.showErrorMessage(
-                `CodeQL database creation failed with exit code ${code}`
-              );
-            }
-          });
-        }
-		
-		// const endpoints = await extractEndpoints();
-		// console.log(endpoints);
+        //   createDatabaseProcess.on("close", async (code) => {
+        //     if (code === 0) {
+        //       vscode.window.showInformationMessage(
+        //         `CodeQL database created successfully at ${databaseFolder}`
+        //       );
+        //       await analyzeDatabase(
+        //         databaseFolder,
+        //         workspaceFolder,
+        //         reposhieldPath
+        //       );
+        //     } else {
+        //       vscode.window.showErrorMessage(
+        //         `CodeQL database creation failed with exit code ${code}`
+        //       );
+        //     }
+        //   });
+        // }
 
+        const endpoints = await extractEndpoints();
+        console.log(endpoints);
       } catch (error: any) {
         vscode.window.showErrorMessage(`Error: ${error.message}`);
       }

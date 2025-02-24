@@ -42,7 +42,7 @@ async def read_users_me(
     )
 
 @router.post("/")
-async def update_user(updated_users: User, session: SessionDep, current_user: User = Depends(get_current_user)):
+async def update_user(user: schemas.UserProfile, session: SessionDep, current_user: User = Depends(get_current_user)):
     try:
         if current_user is None:
             return {"status": "Unsuccessful"}
@@ -53,16 +53,16 @@ async def update_user(updated_users: User, session: SessionDep, current_user: Us
 
         if not existing_user:
             raise HTTPException(status_code=404, detail="Calendar not found or not authorized to update")
-        print(updated_users.interests)
-        existing_user.extraversion = updated_users.extraversion
-        existing_user.openness = updated_users.openness
-        existing_user.conscientiousness = updated_users.conscientiousness
-        existing_user.agreeableness = updated_users.agreeableness
-        existing_user.neuroticism = updated_users.neuroticism
-        existing_user.interests = updated_users.interests
-        existing_user.energy_level = updated_users.energy_level
-        existing_user.preferred_time = updated_users.preferred_time
-        existing_user.social_preference = updated_users.social_preference
+        print(user.interests)
+        existing_user.extraversion = user.extraversion
+        existing_user.openness = user.openness
+        existing_user.conscientiousness = user.conscientiousness
+        existing_user.agreeableness = user.agreeableness
+        existing_user.neuroticism = user.neuroticism
+        existing_user.interests = updateduser_users.interests
+        existing_user.energy_level = user.energy_level
+        existing_user.preferred_time = user.preferred_time
+        existing_user.social_preference = user.social_preference
         session.add(existing_user)
         session.commit()
         session.refresh(existing_user)
