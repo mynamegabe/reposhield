@@ -236,6 +236,10 @@ async function activate(context) {
 }
 async function openSarifViewerPannel(filePath) {
     try {
+        if (!fs.existsSync(filePath)) {
+            vscode.window.showErrorMessage(`The file at path "${filePath}" was not found.`);
+            return false;
+        }
         const sarifExt = vscode.extensions.getExtension("MS-SarifVSCode.sarif-viewer");
         if (sarifExt === undefined) {
             vscode.window

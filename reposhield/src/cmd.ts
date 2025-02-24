@@ -110,7 +110,7 @@ export async function runSandbox(): Promise<boolean> {
     let envs = [];
     // Hardcoded for now for testing
     envs.push(
-        `-e "EXECMD=python app.py"`,
+        `-e "EXECMD=python3 app.py"`,
         `-e "APPPORT=5000"`,
         `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`,
         `-e "LANGUAGE=python"`,
@@ -123,28 +123,35 @@ export async function runSandbox(): Promise<boolean> {
     return true;
 }
 
-export async function runNucleiDocker(composeDirectory: string, templateDirectory: string, targetPort: string): Promise<boolean> {
+export async function runNucleiDocker(resourceDirectory: string, templateDirectory: string, targetPort: string): Promise<boolean> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
 
-    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
+    // let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
 
     // command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
     // command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
 
     // modify docker-compose.yaml to specify workspace folder
     // replace ||workspaceFolder|| with workspace folder path
-    const composeFile = path.join(composeDirectory, 'docker-compose.yaml');
-    let composeContent = await vscode.workspace.fs.readFile(vscode.Uri.file(composeFile));
+    const baseComposeFile = path.join(resourceDirectory, 'docker-compose-base.yaml');
+    let composeContent = await vscode.workspace.fs.readFile(vscode.Uri.file(baseComposeFile));
     let composeString = new TextDecoder().decode(composeContent);
     composeString = composeString.replace('||workspaceFolder||', workspaceFolder.uri.fsPath);
-    await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), new TextEncoder().encode(composeString));
+    // replace ||templateFolder|| with resourceDirectory/nuclei/templates
+    composeString = composeString.replace('||templateFolder||', path.join(resourceDirectory, 'nuclei/templates'));
+    composeString = composeString.replace('||payloadsFolder||', path.join(resourceDirectory, 'nuclei/payloads'));
+
+    
+    const composeFile = path.join(resourceDirectory, 'docker-compose.yaml');
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), Buffer.from(composeString));
+    
 
 
     let command = `docker-compose up --build`;
-    await executeCommand(command, 'Running docker container', composeDirectory);
+    await executeCommand(command, 'Running docker container', resourceDirectory);
 
     return true;
 }

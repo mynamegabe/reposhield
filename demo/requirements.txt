@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+werkzeug
+python-multipart
+sqlmodel
+pyjwt
+pymysql
+requests

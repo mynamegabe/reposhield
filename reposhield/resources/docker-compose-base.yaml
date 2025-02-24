@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\demo:/opt/src
+      - ||workspaceFolder||:/opt/src
     environment:
       - EXECMD=python3 app.py
       - APPPORT=8000
@@ -22,8 +22,8 @@ services:
   nuclei_runner:
     image: projectdiscovery/nuclei
     volumes:
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\reposhield\resources\nuclei\templates:/app/templates
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\reposhield\resources\nuclei\payloads:/app/payloads
+      - ||templateFolder||:/app/templates
+      - ||payloadsFolder||:/app/payloads
       - ./results:/app/results
     # command: -jsonl /app/results/results.jsonl -u http://api:8000 -t /app/templates/
     command: -u http://api:8000 -t /app/templates/ -v -validate

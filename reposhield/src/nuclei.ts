@@ -15,7 +15,7 @@ export async function generateNucleiTemplates(
   for (const p of paths) {
     const pFilename = p.path.replace(/\//g, "_").replace(/:/g, "_");
     const params = p.params;
-    const paramsFile = path.join(templateDirectory, "payloads", `${pFilename}.txt`);
+    const paramsFile = path.join(templateDirectory, "../payloads", `${pFilename}.txt`);
     const paramsStr = params.join("\n");
     fs.writeFileSync(paramsFile, paramsStr);
 
