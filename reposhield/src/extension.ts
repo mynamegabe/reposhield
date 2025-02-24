@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as unzipper from "unzipper";
 import * as os from "os";
-import { runDocker, cleanDockerContainer } from "./cmd";
+import { runDocker, cleanDockerContainer, runNucleiDocker } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function readInternalFile(context: vscode.ExtensionContext, filename: string) {
@@ -41,8 +41,13 @@ async function readPythonFiles(): Promise<{ [fileName: string]: string }> {
 
 async function extractRoutesParams(fileContents: {
   [fileName: string]: string;
-}): Promise<{ method: string; path: string; params: string[] }[]> {
+}): Promise<{
+  port: string;
+  routes: { method: string; path: string; params: string[] }[];
+}> {
   let prompt =
+    "First, discover the port number of the application and output in the format: PORT: 5000\n\n";
+  prompt +=
     "Analyse the following files and extract the API paths and parameters\n";
   prompt += "Output in the format: [METHOD] /path/to/endpoint [PARAMS]\n\n";
   prompt += "Strictly do not include any other information or text\n\n";
@@ -52,7 +57,9 @@ async function extractRoutesParams(fileContents: {
   prompt += `Source code: ${sourceCode}\n\n`;
   const result = await model.generateContent(prompt);
   console.log(result.response.text());
-  // return result.response.text().split('\n');
+
+  const port = result.response.text().split(": ")[1].trim();
+
   const paths = result.response.text().split("\n");
   const routes: { method: string; path: string; params: string[] }[] = [];
   // regex match results into {method, path, params}
@@ -70,10 +77,16 @@ async function extractRoutesParams(fileContents: {
       });
     }
   }
-  return routes;
+  return {
+    port,
+    routes: routes,
+  };
 }
 
-async function extractEndpoints(): Promise<{ method: string; path: string }[]> {
+async function extractEndpoints(): Promise<{
+  port: string;
+  routes: { method: string; path: string; params: string[] }[];
+}> {
   const pythonFiles = await readPythonFiles();
   const routes = await extractRoutesParams(pythonFiles);
   return routes;
@@ -338,12 +351,6 @@ export async function activate(context: vscode.ExtensionContext) {
       } else {
         codeqlexepath = path.join(codeqlPath, "codeql");
       }
-      //   const config = vscode.workspace.getConfiguration("codeQL");
-      //   await config.update(
-      //     "executablePath",
-      //     codeqlexepath,
-      //     vscode.ConfigurationTarget.Global
-      //   );
       vscode.window.showInformationMessage(
         `CodeQL has been installed at: ${codeqlPath}`
       );
@@ -354,15 +361,6 @@ export async function activate(context: vscode.ExtensionContext) {
       return; // Exit activation if installation fails
     }
   }
-
-  // Check if the CodeQL extension is installed
-  // const codeqlExtension = vscode.extensions.getExtension('GitHub.vscode-codeql');
-  // if (!codeqlExtension) {
-  // 	vscode.window.showErrorMessage('CodeQL extension not installed.');
-  // 	return;
-  // }
-
-  // await codeqlExtension.activate();
 
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
@@ -435,11 +433,13 @@ export async function activate(context: vscode.ExtensionContext) {
         //   });
         // }
 
-        // const endpoints = await extractEndpoints();
-		
-		// write endpoints to a json file
-		fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
-	} catch (error: any) {
+        const endpoints = await extractEndpoints();
+        // write endpoints to a json file
+        fs.writeFileSync(
+          path.join(reposhieldPath, "endpoints.json"),
+          JSON.stringify(endpoints, null, 2)
+        );
+      } catch (error: any) {
         vscode.window.showErrorMessage(`Error: ${error.message}`);
       }
     }
@@ -477,9 +477,44 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const disposableNuclei = vscode.commands.registerCommand(
+    "reposhield.nuclei",
+    async () => {
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Performing dynamic analysis on this workspace...`,
+          cancellable: true,
+        },
+        async (progress, token) => {
+          token.onCancellationRequested(() => {
+            cleanDockerContainer();
+            console.log("User canceled the long running operation");
+          });
+          const endpoints = JSON.parse(
+            fs.readFileSync(
+              path.join(reposhieldPath, "endpoints.json"),
+              "utf-8"
+            )
+          );
+          const targetPort = endpoints.port;
+          const templateDirectory = path.join(
+            context.extensionPath,
+            "resources",
+            "nuclei",
+            "templates"
+          );
+          await runNucleiDocker(templateDirectory, targetPort);
+          vscode.window.showInformationMessage("Scanning complete");
+        }
+      );
+    }
+  );
+
   context.subscriptions.push(disposableDynamic);
   context.subscriptions.push(disposableReadLog);
   context.subscriptions.push(disposableFolderScan);
+  context.subscriptions.push(disposableNuclei);
 }
 
 // Run a command using child process
@@ -608,6 +643,14 @@ async function isCodeQLInstalled(): Promise<boolean> {
   return new Promise((resolve) => {
     cp.exec("codeql --version", (error) => {
       resolve(!error); // if no error, it means CodeQL is installed
+    });
+  });
+}
+
+async function isNucleiInstalled(): Promise<boolean> {
+  return new Promise((resolve) => {
+    cp.exec("nuclei -version", (error) => {
+      resolve(!error); // if no error, it means Nuclei is installed
     });
   });
 }

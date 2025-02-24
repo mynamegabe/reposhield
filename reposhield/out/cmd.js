@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.executeCommand = executeCommand;
 exports.cleanDockerContainer = cleanDockerContainer;
 exports.runDocker = runDocker;
+exports.runNucleiDocker = runNucleiDocker;
 const cp = __importStar(require("child_process"));
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
@@ -83,6 +84,18 @@ async function runDocker() {
     envs.push(`-e "EXECMD=python app.py"`, `-e "APPPORT=5000"`, `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`, `-e "LANGUAGE=python"`);
     const envString = envs.join(' ');
     command = `docker run --rm --name ${DOCKER_CONTAINER_NAME} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${DOCKER_CONTAINER_NAME}`;
+    await executeCommand(command, 'Running docker container', reposhieldPath);
+    return true;
+}
+async function runNucleiDocker(templateDirectory, targetPort) {
+    let command = `docker pull projectdiscovery/nuclei:latest`;
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
+    await executeCommand(command, 'Pulling docker container', reposhieldPath);
+    command = `docker run --rm -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
     await executeCommand(command, 'Running docker container', reposhieldPath);
     return true;
 }

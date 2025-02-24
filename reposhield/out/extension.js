@@ -70,7 +70,9 @@ async function readPythonFiles() {
     return fileContents;
 }
 async function extractRoutesParams(fileContents) {
-    let prompt = "Analyse the following files and extract the API paths and parameters\n";
+    let prompt = "First, discover the port number of the application and output in the format: PORT: 5000\n\n";
+    prompt +=
+        "Analyse the following files and extract the API paths and parameters\n";
     prompt += "Output in the format: [METHOD] /path/to/endpoint [PARAMS]\n\n";
     prompt += "Strictly do not include any other information or text\n\n";
     prompt += "Example: [GET] /api/v1/users/:id\n\n";
@@ -79,7 +81,7 @@ async function extractRoutesParams(fileContents) {
     prompt += `Source code: ${sourceCode}\n\n`;
     const result = await model.generateContent(prompt);
     console.log(result.response.text());
-    // return result.response.text().split('\n');
+    const port = result.response.text().split(": ")[1].trim();
     const paths = result.response.text().split("\n");
     const routes = [];
     // regex match results into {method, path, params}
@@ -97,7 +99,10 @@ async function extractRoutesParams(fileContents) {
             });
         }
     }
-    return routes;
+    return {
+        port,
+        routes: routes,
+    };
 }
 async function extractEndpoints() {
     const pythonFiles = await readPythonFiles();
@@ -326,12 +331,6 @@ async function activate(context) {
             else {
                 codeqlexepath = path.join(codeqlPath, "codeql");
             }
-            //   const config = vscode.workspace.getConfiguration("codeQL");
-            //   await config.update(
-            //     "executablePath",
-            //     codeqlexepath,
-            //     vscode.ConfigurationTarget.Global
-            //   );
             vscode.window.showInformationMessage(`CodeQL has been installed at: ${codeqlPath}`);
         }
         catch (error) {
@@ -339,13 +338,6 @@ async function activate(context) {
             return; // Exit activation if installation fails
         }
     }
-    // Check if the CodeQL extension is installed
-    // const codeqlExtension = vscode.extensions.getExtension('GitHub.vscode-codeql');
-    // if (!codeqlExtension) {
-    // 	vscode.window.showErrorMessage('CodeQL extension not installed.');
-    // 	return;
-    // }
-    // await codeqlExtension.activate();
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showErrorMessage("No workspace folder found.");
@@ -399,7 +391,7 @@ async function activate(context) {
             //     }
             //   });
             // }
-            // const endpoints = await extractEndpoints();
+            const endpoints = await extractEndpoints();
             // write endpoints to a json file
             fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
         }
@@ -429,9 +421,27 @@ async function activate(context) {
             vscode.window.showInformationMessage("Scanning complete");
         });
     });
+    const disposableNuclei = vscode.commands.registerCommand("reposhield.nuclei", async () => {
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Performing dynamic analysis on this workspace...`,
+            cancellable: true,
+        }, async (progress, token) => {
+            token.onCancellationRequested(() => {
+                (0, cmd_1.cleanDockerContainer)();
+                console.log("User canceled the long running operation");
+            });
+            const endpoints = JSON.parse(fs.readFileSync(path.join(reposhieldPath, "endpoints.json"), "utf-8"));
+            const targetPort = endpoints.port;
+            const templateDirectory = path.join(context.extensionPath, "resources", "nuclei", "templates");
+            await (0, cmd_1.runNucleiDocker)(templateDirectory, targetPort);
+            vscode.window.showInformationMessage("Scanning complete");
+        });
+    });
     context.subscriptions.push(disposableDynamic);
     context.subscriptions.push(disposableReadLog);
     context.subscriptions.push(disposableFolderScan);
+    context.subscriptions.push(disposableNuclei);
 }
 // Run a command using child process
 async function analyzeDatabase(databaseFolder, workspaceFolder, reposhieldPath) {
@@ -528,6 +538,13 @@ async function isCodeQLInstalled() {
     return new Promise((resolve) => {
         cp.exec("codeql --version", (error) => {
             resolve(!error); // if no error, it means CodeQL is installed
+        });
+    });
+}
+async function isNucleiInstalled() {
+    return new Promise((resolve) => {
+        cp.exec("nuclei -version", (error) => {
+            resolve(!error); // if no error, it means Nuclei is installed
         });
     });
 }

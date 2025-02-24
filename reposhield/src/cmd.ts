@@ -70,3 +70,21 @@ export async function runDocker(): Promise<boolean> {
 
     return true;
 }
+
+export async function runNucleiDocker(templateDirectory: string, targetPort: string): Promise<boolean> {
+    let command = `docker pull projectdiscovery/nuclei:latest`;
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+
+    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
+
+    await executeCommand(command, 'Pulling docker container', reposhieldPath);
+
+    command = `docker run --rm -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
+    await executeCommand(command, 'Running docker container', reposhieldPath);
+
+    return true;
+}

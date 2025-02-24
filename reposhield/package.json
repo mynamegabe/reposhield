@@ -43,7 +43,7 @@
     "viewsWelcome": [
       {
         "view": "reposhieldProject",
-        "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)\n[Read log](command:reposhield.readLog)\n\nRun dynamic analysis on the current workspace to find potential security vulnerabilities (docker required).\n[Run dynamic analysis (requires docker)](command:reposhield.dynamicanalysis)"
+        "contents": "Run static code analysis using CodeQL.\n[Scan workspace](command:reposhield.scanWorkspace)\n[Read log](command:reposhield.readLog)\n\nRun dynamic analysis on the current workspace to find potential security vulnerabilities (docker required).\n[Run dynamic analysis (requires docker)](command:reposhield.dynamicanalysis) \n\nRun nuclei templates on the current workspace to find potential security vulnerabilities (docker required).\n[Run nuclei templates (requires docker)](command:reposhield.nuclei) \n\n"
       }
     ],
     "commands": [
@@ -58,6 +58,10 @@
       {
         "command": "reposhield.dynamicanalysis",
         "title": "RepoShield: Run dynamic analysis on the workspace (docker required)"
+      },
+      {
+        "command": "reposhield.nuclei",
+        "title": "RepoShield: Run nuclei templates on the workspace (docker required)"
       }
     ]
   },
