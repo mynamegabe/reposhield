@@ -7,6 +7,7 @@ import * as unzipper from "unzipper";
 import * as os from "os";
 import { runSandbox, cleanDockerContainer, runNucleiDocker, executeCommand, codeqlScan } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateNucleiTemplates } from "./nuclei";
 
 function readInternalFile(context: vscode.ExtensionContext, filename: string) {
   const filePath = path.join(context.extensionPath, "resources", filename);
@@ -58,7 +59,13 @@ async function extractRoutesParams(fileContents: {
   const result = await model.generateContent(prompt);
   console.log(result.response.text());
 
-  const port = result.response.text().split(": ")[1].trim();
+    // regex match PORT: <port>
+  const portRegex = /PORT: (\d+)/;
+  const portMatch = result.response.text().match(portRegex);
+  if (!portMatch) {
+    throw new Error("Port number not found");
+  }
+  const port = portMatch[1];
 
   const paths = result.response.text().split("\n");
   const routes: { method: string; path: string; params: string[] }[] = [];
@@ -239,6 +246,12 @@ export async function activate(context: vscode.ExtensionContext) {
             "nuclei",
             "templates"
           );
+
+          await generateNucleiTemplates(
+            templateDirectory,
+            path.join(reposhieldPath, "endpoints.json")
+          );
+
           await runNucleiDocker(templateDirectory, targetPort);
           vscode.window.showInformationMessage("Scanning complete");
         }

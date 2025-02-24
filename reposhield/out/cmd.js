@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.executeCommand = executeCommand;
 exports.cleanDockerContainer = cleanDockerContainer;
+exports.codeqlScan = codeqlScan;
 exports.runDocker = runDocker;
 exports.runNucleiDocker = runNucleiDocker;
 const cp = __importStar(require("child_process"));
@@ -71,14 +72,27 @@ async function cleanDockerContainer() {
     let command = `docker rm -f ${DOCKER_CONTAINER_NAME}`;
     await executeCommand(command, 'Clean up docker container');
 }
-async function runDocker() {
-    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
+async function codeqlScan() {
+    // let dockerPath = await projectConfiguration.getDockerPath();
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
+    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
-    await executeCommand(command, 'Building docker container', reposhieldPath);
+    await executeCommand(command, 'Building codeql docker container', reposhieldPath);
+    command = `docker run --rm --name reposhield-codeql -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" reposhield-codeql`;
+    await executeCommand(command, 'Codeql scan');
+    return true;
+}
+async function runDocker() {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
+    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
+    await executeCommand(command, 'Building sandbox docker container', reposhieldPath);
     let envs = [];
     // Hardcoded for now for testing
     envs.push(`-e "EXECMD=python app.py"`, `-e "APPPORT=5000"`, `-e "ENDPOINTS=getrace,racetrack,dist,gimmeflag,test"`, `-e "LANGUAGE=python"`);
@@ -95,7 +109,8 @@ async function runNucleiDocker(templateDirectory, targetPort) {
     }
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
     await executeCommand(command, 'Pulling docker container', reposhieldPath);
-    command = `docker run --rm -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
+    // command = `docker run -v "${templateDirectory}:/app/" projectdiscovery/nuclei -jsonl /app/results.jsonl -u http://127.0.0.1:${targetPort} -t /app/templates/`;
+    command = `docker run projectdiscovery/nuclei:latest -u http://127.0.0.1:${targetPort}`;
     await executeCommand(command, 'Running docker container', reposhieldPath);
     return true;
 }
