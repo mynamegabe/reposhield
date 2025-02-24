@@ -44,17 +44,35 @@ export async function cleanDockerContainer() {
     await executeCommand(command, 'Clean up docker container');
 }
 
-export async function runDocker(): Promise<boolean> {
-    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
-
+export async function codeqlScan(): Promise<boolean> {
+    // let dockerPath = await projectConfiguration.getDockerPath();
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
 
+    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
 
-    await executeCommand(command, 'Building docker container', reposhieldPath);
+    await executeCommand(command, 'Building codeql docker container', reposhieldPath);
+  
+    command = `docker run --rm --name reposhield-codeql -v "${workspaceFolder.uri.fsPath}:/opt/src" -e "COMMAND=build" -e --overwrite -e "OVERWRITE_FLAG=--overwrite" -e "SAVE_CACHE_FLAG=--save-cache" -e "THREADS=4" -e "LANGUAGE=python" reposhield-codeql`;
+
+    await executeCommand(command, 'Codeql scan');
+
+    return true;
+}
+
+export async function runDocker(): Promise<boolean> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+
+    let command = `docker build -t ${DOCKER_CONTAINER_NAME} .`;
+    let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield')
+
+    await executeCommand(command, 'Building sandbox docker container', reposhieldPath);
     let envs = [];
     // Hardcoded for now for testing
     envs.push(

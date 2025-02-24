@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as unzipper from "unzipper";
 import * as os from "os";
-import { runDocker, cleanDockerContainer, runNucleiDocker } from "./cmd";
+import { runDocker, cleanDockerContainer, runNucleiDocker, executeCommand, codeqlScan } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { generateNucleiTemplates } from "./nuclei";
 
@@ -99,7 +99,7 @@ async function extractEndpoints(): Promise<{
   return routes;
 }
 
-
+console.log(getConfigValue("reposhield", "APIKey"));
 const genAI = new GoogleGenerativeAI(getConfigValue("reposhield", "APIKey"));
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -107,8 +107,10 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 export async function activate(context: vscode.ExtensionContext) {
   console.log("RepoShield extension is now active!");
 
-  const DOCKERFILE_CONTENT = readInternalFile(context, "sandbox/Dockerfile");
-  const ANALYZE_SH_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
+  const SANDBOX_DOCKER_CONTENT = readInternalFile(context, "sandbox/Dockerfile");
+  const SANDBOX_ANALYZE_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
+  const CODEQL_DOCKER_CONTENT = readInternalFile(context, "codeql/Dockerfile");
+  const CODEQL_ANALYZE_CONTENT = readInternalFile(context, "codeql/analyze.sh");
   let codeqlPath = await getConfigValue("codeQL", "executablePath");
   if (codeqlPath === "undefined") {
     codeqlPath = os.homedir() + "\\codeql";
@@ -153,16 +155,28 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Define the path for the CodeQL database
   const databaseFolder = path.join(reposhieldPath, "codeql-database");
+  const sandboxFolder = path.join(reposhieldPath, "sandbox");
+  const codeqlFolder = path.join(reposhieldPath, "codeql");
 
-  if (!fs.existsSync(databaseFolder)) {
+  if (!fs.existsSync(reposhieldPath)) {
     fs.mkdirSync(databaseFolder, { recursive: true });
+    fs.mkdirSync(sandboxFolder, { recursive: true });
+    fs.mkdirSync(codeqlFolder, { recursive: true });
     await writeFile(
-      path.join(reposhieldPath, "Dockerfile"),
-      DOCKERFILE_CONTENT
+      path.join(sandboxFolder, "Dockerfile"),
+      SANDBOX_DOCKER_CONTENT
     );
     await writeFile(
-      path.join(reposhieldPath, "analyze.sh"),
-      ANALYZE_SH_CONTENT
+      path.join(sandboxFolder, "analyze.sh"),
+      SANDBOX_ANALYZE_CONTENT
+    );
+    await writeFile(
+      path.join(codeqlFolder, "Dockerfile"),
+      CODEQL_DOCKER_CONTENT
+    );
+    await writeFile(
+      path.join(codeqlFolder, "analyze.sh"),
+      CODEQL_ANALYZE_CONTENT
     );
     vscode.window.showInformationMessage(
       'Created "codeql-database" directory in the workspace.'
@@ -174,45 +188,10 @@ export async function activate(context: vscode.ExtensionContext) {
     "reposhield.scanWorkspace",
     async () => {
       try {
-        // Run the CodeQL CLI to create the database
         vscode.window.showInformationMessage("Creating CodeQL database...");
 
-        // // const command = `codeql database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
-        // const command = `${codeqlBinPath} database create "${databaseFolder}" --language=python --source-root="${workspaceFolder.uri.fsPath}" --overwrite`;
-        // console.log("Command: ", command);
-        // const createDatabaseProcess = cp.exec(command, {
-        //   cwd: workspaceFolder.uri.fsPath,
-        // });
-        // if (
-        //   createDatabaseProcess !== null &&
-        //   createDatabaseProcess.stdout !== null &&
-        //   createDatabaseProcess.stderr !== null
-        // ) {
-        //   createDatabaseProcess.stdout.on("data", (data) => {
-        //     console.log(data);
-        //   });
-
-        //   createDatabaseProcess.stderr.on("data", (error) => {
-        //     console.error(error);
-        //   });
-
-        //   createDatabaseProcess.on("close", async (code) => {
-        //     if (code === 0) {
-        //       vscode.window.showInformationMessage(
-        //         `CodeQL database created successfully at ${databaseFolder}`
-        //       );
-        //       await analyzeDatabase(
-        //         databaseFolder,
-        //         workspaceFolder,
-        //         reposhieldPath
-        //       );
-        //     } else {
-        //       vscode.window.showErrorMessage(
-        //         `CodeQL database creation failed with exit code ${code}`
-        //       );
-        //     }
-        //   });
-        // }
+    		// write endpoints to a json file
+        // fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
 
         const endpoints = await extractEndpoints();
         // write endpoints to a json file
@@ -220,6 +199,21 @@ export async function activate(context: vscode.ExtensionContext) {
           path.join(reposhieldPath, "endpoints.json"),
           JSON.stringify(endpoints, null, 2)
         );
+
+        vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: `Scanning workspace: ${workspaceFolder.uri.fsPath}...` ,
+          cancellable: true
+        }, async (progress, token) => {
+          token.onCancellationRequested(() => {
+            cleanDockerContainer();
+            console.log("User canceled the long running operation");
+          });
+          await codeqlScan();
+          let resultPath = path.join(reposhieldPath, 'result.sarif');
+          openSarifViewerPannel(resultPath)
+          vscode.window.showInformationMessage("Scanning complete");
+        });
       } catch (error: any) {
         vscode.window.showErrorMessage(`Error: ${error.message}`);
       }
