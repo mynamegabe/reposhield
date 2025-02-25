@@ -26,7 +26,7 @@ services:
       - ||payloadsFolder||:/app/payloads
       - ./results:/app/results
     # command: -jsonl /app/results/results.jsonl -u http://api:8000 -t /app/templates/
-    command: -u http://api:8000 -t /app/templates/ -v -validate
+    command: /bin/sh -c "chmod -R 777 /app/templates /app/payloads && nuclei -u http://api:8000 -t /app/templates/ -v -validate"
     depends_on:
       api:
         condition: service_healthy

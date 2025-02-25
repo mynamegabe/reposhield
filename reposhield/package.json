@@ -100,7 +100,6 @@
   "dependencies": {
     "@google/generative-ai": "^0.22.0",
     "commander": "^13.1.0",
-    "re2": "^1.21.4",
     "unzipper": "^0.12.3"
   }
 }

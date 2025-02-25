@@ -1,5 +1,47 @@
 import * as path from "path";
 import * as fs from "fs";
+import * as vscode from 'vscode';
+
+export async function replaceCarriageReturnsInFolder(folderPath: string) {
+  try {
+    // Get the list of files in the folder
+    const files = fs.readdirSync(folderPath);
+
+    for (const file of files) {
+      const filePath = path.join(folderPath, file);
+
+      // Check if the file is a regular file (not a directory)
+      const stat = fs.statSync(filePath);
+      if (stat.isFile()) {
+        await replaceCarriageReturnsInFile(filePath);
+      } else if (stat.isDirectory()) {
+        // Recursively process subdirectories
+        await replaceCarriageReturnsInFolder(filePath);
+      }
+    }
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Error reading folder: ${error.message}`);
+  }
+  console.log("Done replacing CRLF.");
+}
+
+async function replaceCarriageReturnsInFile(filePath: string) {
+  try {
+    // Open the file and read its content
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+
+    // Replace all \r\n with \n
+    const updatedContent = fileContent.replace(/\r\n/g, '\n');
+
+    // If there is any change, write the content back to the file
+    if (fileContent !== updatedContent) {
+      fs.writeFileSync(filePath, updatedContent, 'utf8');
+      vscode.window.showInformationMessage(`Updated file: ${filePath}`);
+    }
+  } catch (error: any) {
+    vscode.window.showErrorMessage(`Error processing file: ${filePath} - ${error.message}`);
+  }
+}
 
 export async function generateNucleiTemplates(
   templateDirectory: string,
@@ -47,4 +89,8 @@ export async function generateNucleiTemplates(
       fs.writeFileSync(newFile, template);
     }
   }
+
+  await replaceCarriageReturnsInFolder(path.join(templateDirectory, "../payloads"));
+  await replaceCarriageReturnsInFolder(templateDirectory);
+
 }
