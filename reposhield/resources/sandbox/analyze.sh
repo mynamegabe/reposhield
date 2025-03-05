@@ -6,11 +6,6 @@ if [ -z "$EXECMD" ]; then
   exit 1
 fi
 
-if [ -z "$ENDPOINTS" ]; then
-  echo "ENDPOINTS is not set! Please provide a comma-delimited list of web service endpoints."
-  exit 1
-fi
-
 if [ -z "$LANGUAGE" ]; then
   echo "LANGUAGE is not set! Please provide the programming language (e.g., node, python)."
   exit 1
@@ -19,6 +14,11 @@ fi
 if [ -z "$APPPORT" ]; then
   echo "APPPORT is not set! Please provide the port that the web service runs on."
   exit 1
+fi
+
+if [ -z "$VERBOSE_PROCMON" ]; then
+  VERBOSE_PROCMON=""
+  # -f to print verbose
 fi
 
 # Install dependencies based on the LANGUAGE environment variable
@@ -93,8 +93,22 @@ install_dependencies() {
 echo "Changing to WORKSPACE directory: $WORKSPACE"
 cd "$WORKSPACE" || { echo "Failed to change to WORKSPACE directory. Exiting."; exit 1; }
 
+SANDBOX_DIR="$WORKSPACE/.reposhield/sandbox"
+mkdir $SANDBOX_DIR
+
 # Install dependencies
 install_dependencies
+
+WATCHER_DIR=/x86_64-unknown-linux-gnu
+echo "Starting process monitor..."
+# Start pspy to monitor processes
+cp $SANDBOX_DIR/processes.txt $SANDBOX_DIR/processes.txt.bak
+echo -n "" > $SANDBOX_DIR/processes.txt
+$WATCHER_DIR/pspy64 --color=false $VERBOSE_PROCMON >> $SANDBOX_DIR/processes.txt 2>/dev/null &
+
+# Wait for pspy to start, then clear the false positives
+sleep 6
+echo -n "" > $SANDBOX_DIR/processes.txt
 
 # Start the web service
 echo "Starting the web service with command: $EXECMD"
@@ -104,8 +118,24 @@ SERVICE_PID=$!
 # Give the service a few seconds to initialize
 sleep 5
 
+# Check if the service is up by sending curl requests
+wait_for_service() {
+  local url="http://localhost:$APPPORT"
+  echo "Waiting for the web service to start at $url..."
+
+  until curl -s --head --max-time 2 "$url" > /dev/null; do
+    echo "Service not up yet. Retrying in 1 second..."
+    sleep 1
+  done
+
+  echo "Service is up and running!"
+}
+
+# Wait for service to be up and accessible
+wait_for_service
+
 # Track CPU and RAM usage of the service
-CPU_RAM_LOG="/opt/src/.reposhield/report"
+CPU_RAM_LOG="$SANDBOX_DIR/report"
 echo "Monitoring CPU and RAM usage for process ID $SERVICE_PID..." > "$CPU_RAM_LOG"
 ps -p $SERVICE_PID -o %cpu,%mem,cmd >> "$CPU_RAM_LOG"
 
@@ -115,45 +145,27 @@ if ! ps -p $SERVICE_PID > /dev/null; then
   exit 1
 fi
 
-# Function to run the fuzzing tests on the endpoints
-# run_fuzzers() {
-#   local endpoints=$1
-#   local report_file=$2
-#   local found_issues=false
-
-#   echo -e "\nRunning fuzzers on endpoints..." >> "$report_file"
-
-#   # Iterate through each endpoint and simulate fuzzing
-#   IFS=',' read -r -a endpoint_array <<< "$endpoints"
-#   for endpoint in "\${endpoint_array[@]}"; do
-#     # Create the full URL using the APPPORT and the endpoint
-#     FULL_URL="http://localhost:\${APPPORT}/\${endpoint}"
-    
-#     echo -e "Fuzzing endpoint: $FULL_URL" >> "$report_file"
-
-#     # Basic fuzzing logic (just random characters for this demo)
-#     RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$FULL_URL" -d "@<(echo $RANDOM)" -X POST)
-    
-#     # You could add more detailed checks here to look for crashes or vulnerabilities
-#     if [[ "$RESPONSE" -eq 500 || "$RESPONSE" -eq 400 ]]; then
-#       echo "Potential issue or crash found at endpoint: $FULL_URL (HTTP $RESPONSE)" >> "$report_file"
-#       found_issues=true
-#     else
-#       echo "No issues found at endpoint: $FULL_URL" >> "$report_file"
-#     fi
-#   done
-
-#   # If no issues are found, log that information
-#   if [ "$found_issues" = false ]; then
-#     echo "nothing found" >> "$report_file"
-#   fi
-# }
-
-# Run fuzzing tests on the given endpoints
-# run_fuzzers "$ENDPOINTS" "$CPU_RAM_LOG"
+# filesystem watcher
+cp $SANDBOX_DIR/watcher.log $SANDBOX_DIR/watcher.log.bak
+echo -n "" > $SANDBOX_DIR/watcher.log
+$WATCHER_DIR/watcher /home >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /dev >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /etc >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /tmp >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /root >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /media >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /mnt >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /run >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /sys >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /usr >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /var >> $SANDBOX_DIR/watcher.log 2>&1 &
+$WATCHER_DIR/watcher /srv >> $SANDBOX_DIR/watcher.log 2>&1 &
 
 # Wait for the service to finish running (optional, you can stop it after a certain timeout)
 sleep 6000
 kill -9 $SERVICE_PID
+
+# Kills all watcher processes
+ps aux | grep -E 'watcher|pspy64' | grep -v grep | awk '{print $2}' | xargs kill -9
 
 echo "Web service has finished. Fuzzer results and resource usage can be found in $CPU_RAM_LOG"

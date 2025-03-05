@@ -148,8 +148,9 @@ create_database() {
 }
 
 scan() {
-    print_green "[Running] Start Scanning: codeql database analyze --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.sarif $DB $QS"
-    codeql database analyze --off-heap-ram=0 --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/results.sarif $DB $QS
+    mkdir $OUTPUT/codeql
+    print_green "[Running] Start Scanning: codeql database analyze --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/codeql/results.sarif $DB $QS"
+    codeql database analyze --off-heap-ram=0 --format=$FORMAT --threads=$THREADS $SAVE_CACHE_FLAG --output=$OUTPUT/codeql/results.sarif $DB $QS
     if [ $? -ne 0 ]; then
         print_red "[!] CodeQL analyze failed."
         finalize

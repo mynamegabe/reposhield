@@ -107,11 +107,6 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 export async function activate(context: vscode.ExtensionContext) {
   console.log("RepoShield extension is now active!");
 
-  const SANDBOX_DOCKER_CONTENT = readInternalFile(context, "sandbox/Dockerfile");
-  const SANDBOX_ANALYZE_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
-  const CODEQL_DOCKER_CONTENT = readInternalFile(context, "codeql/Dockerfile");
-  const CODEQL_ANALYZE_CONTENT = readInternalFile(context, "codeql/analyze.sh");
-
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     vscode.window.showErrorMessage("No workspace folder found.");
@@ -120,31 +115,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const reposhieldPath = path.join(workspaceFolder.uri.fsPath, ".reposhield");
 
-  // Define the path for the CodeQL database
-  const sandboxFolder = path.join(reposhieldPath, "sandbox");
-  const codeqlFolder = path.join(reposhieldPath, "codeql");
-
   if (!fs.existsSync(reposhieldPath)) {
-    fs.mkdirSync(sandboxFolder, { recursive: true });
-    fs.mkdirSync(codeqlFolder, { recursive: true });
-    await writeFile(
-      path.join(sandboxFolder, "Dockerfile"),
-      SANDBOX_DOCKER_CONTENT
-    );
-    await writeFile(
-      path.join(sandboxFolder, "analyze.sh"),
-      SANDBOX_ANALYZE_CONTENT
-    );
-    await writeFile(
-      path.join(codeqlFolder, "Dockerfile"),
-      CODEQL_DOCKER_CONTENT
-    );
-    await writeFile(
-      path.join(codeqlFolder, "analyze.sh"),
-      CODEQL_ANALYZE_CONTENT
-    );
+    fs.mkdirSync(reposhieldPath, { recursive: true });
     vscode.window.showInformationMessage(
-      'Created "codeql-database" directory in the workspace.'
+      'Created ".reposhield" directory in the workspace.'
     );
   }
 
@@ -160,7 +134,7 @@ export async function activate(context: vscode.ExtensionContext) {
       cleanSandboxContainer();
       console.log("User cancelled the long running operation");
     });
-    await buildContainers();
+    await buildContainers(context);
     vscode.window.showInformationMessage("Containers built!");
   });
 
@@ -186,7 +160,7 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log("User cancelled the long running operation");
           });
           await codeqlScan();
-          let resultPath = path.join(reposhieldPath, 'results.sarif');
+          let resultPath = path.join(reposhieldPath, 'codeql', 'results.sarif');
           openSarifViewerPannel(resultPath);
           vscode.window.showInformationMessage("Scanning complete");
         });
@@ -221,7 +195,13 @@ export async function activate(context: vscode.ExtensionContext) {
             cleanSandboxContainer();
             console.log("User cancelled the long running operation");
           });
-          await runSandbox();
+          const endpoints = JSON.parse(
+            fs.readFileSync(
+              path.join(reposhieldPath, "endpoints.json"),
+              "utf-8"
+            )
+          );
+          await runSandbox(endpoints);
           vscode.window.showInformationMessage("Scanning completed!");
         }
       );

@@ -99,7 +99,9 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.22.0",
+    "@types/puppeteer": "^7.0.4",
     "commander": "^13.1.0",
+    "puppeteer-core": "^24.3.1",
     "unzipper": "^0.12.3"
   }
 }

@@ -52,11 +52,11 @@ app.include_router(files.router)
 # @app.on_event("startup")
 # def on_startup():
 #     create_db_and_tables()
-    
+
 #     org_id = random_string(32)
-    
+
 #     session = next(get_session())
-    
+
 #     # create test user
 #     if not session.exec(select(User).where(User.email == "johndoe@nextcal.org")).first():
 #         uid = random_string(32)
@@ -71,11 +71,17 @@ app.include_router(files.router)
 #         session.add(user)
 #         session.commit()
 #     session.close()
-    
+
 
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
+
+
+@app.get("/test")
+def read_root():
+    return {"Hello": "World"}
+
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
