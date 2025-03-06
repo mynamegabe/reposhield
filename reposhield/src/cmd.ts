@@ -147,6 +147,8 @@ export async function runSandbox(endpoints: any): Promise<boolean> {
 
     await cleanSandboxContainer();
 
+    await formatLogs(reposhieldPath);
+
     return true;
 }
 
@@ -182,10 +184,44 @@ export async function runNucleiDocker(resourceDirectory: string, templateDirecto
     return true;
 }
 
+export async function formatLogs(reposhieldPath: string): Promise<boolean> {
+    const processesFile = path.join(reposhieldPath, 'sandbox', 'processes.txt');
+    const processesContent = await vscode.workspace.fs.readFile(vscode.Uri.file(processesFile));
+    let processesString = new TextDecoder().decode(processesContent);
+    const modifiedProcessesString = processesString.split('\n').map(line => {
+        const parts = line.split(' ');
+        const filteredParts = parts.filter(part => !part.startsWith('PID='));
+        return filteredParts.slice(2).join(' ').replace(/[ ]+\| /g, ' | ');
+    }).join('\n');
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(processesFile), Buffer.from(modifiedProcessesString));
+    
+    const filesystemFile = path.join(reposhieldPath, 'sandbox', 'watcher.log');
+    const filesystemContent = await vscode.workspace.fs.readFile(vscode.Uri.file(filesystemFile));
+    let filesystemString = new TextDecoder().decode(filesystemContent);
+    const modifiedFilesystemString = filesystemString.split('\n').map(line => {
+        let jsonLine;
+        try {
+            jsonLine = JSON.parse(line);
+        } catch (err) {
+            return line;
+        }
+        if (jsonLine.path_type === 'watcher') {
+            return null;
+        }
+        if (jsonLine.hasOwnProperty('effect_time')) {
+            delete jsonLine.effect_time;
+        }
+        return JSON.stringify(jsonLine);
+    }).filter(line => line !== null).join('\n');
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(filesystemFile), Buffer.from(modifiedFilesystemString));
+
+    return true;
+}
+
 export async function unitTest(reposhieldPath: string, get_routes: any[]): Promise<boolean> {
     const browser = await puppeteer.launch({
-        headless: true,  // Run the browser in headless mode (no UI)
-        slowMo: 50       // Slow down actions to simulate human behavior
+        headless: true,
+        slowMo: 50
     });
 
     const baseUrl = `http://localhost:49153`;
@@ -203,7 +239,7 @@ export async function unitTest(reposhieldPath: string, get_routes: any[]): Promi
             }
             await page.goto(baseUrl, {
                 waitUntil: 'domcontentloaded',
-                timeout: 5000  // Timeout after 5 seconds
+                timeout: 5000
             });
             console.log('Web application is up!');
             break;
@@ -226,29 +262,14 @@ export async function unitTest(reposhieldPath: string, get_routes: any[]): Promi
         let url = `${baseUrl}${route.path}`;
         try {
             console.log(`Visiting: ${url}`);
-            // Navigate to the URL with a timeout option (e.g., 10 seconds)
             await page.goto(url, {
                 waitUntil: 'domcontentloaded',
-                timeout: 5000  // Timeout after 5 seconds
+                timeout: 5000
             });
-
-            // Optionally, simulate scrolling
-            // await page.evaluate(async () => {
-            //     await page.evaluate(() => {
-            //         await page.evaluate(() => {
-            //             await page.evaluate(() => {
-            //                 window.scrollBy(0, window.innerHeight);  // Simulate scrolling
-            //             });
-            //         });
-            //     });
-            // });
-
         } catch (error: any) {
             // console.error(`Error visiting ${url}:`, error);
         }
     }
-
-    // Close the browser after visiting all URLs
     await browser.close();
     
     return true;

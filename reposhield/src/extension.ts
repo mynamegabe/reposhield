@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as unzipper from "unzipper";
 import * as os from "os";
-import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer, buildContainers, semgrepScan } from "./cmd";
+import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer, buildContainers, semgrepScan, formatLogs } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { generateNucleiTemplates } from "./nuclei";
 
@@ -222,6 +222,31 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  const disposableDiffProcesses = vscode.commands.registerCommand(
+    "reposhield.processesdiff",
+    async () => {
+      // await formatLogs(reposhieldPath);
+      const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt"));
+      const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt.bak"));
+      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Process Diff Viewer').then(() => {
+      }, (err) => {
+        vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
+      });
+    }
+  );
+
+  const disposableDiffFilesystem = vscode.commands.registerCommand(
+    "reposhield.filesystemdiff",
+    async () => {
+      const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log"));
+      const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log.bak"));
+      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Filesystem Diff Viewer').then(() => {
+      }, (err) => {
+        vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
+      });
+    }
+  );
+
   const disposableNuclei = vscode.commands.registerCommand(
     "reposhield.nuclei",
     async () => {
@@ -276,6 +301,8 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(disposableDynamic);
+  context.subscriptions.push(disposableDiffProcesses);
+  context.subscriptions.push(disposableDiffFilesystem);
   context.subscriptions.push(disposableReadLog);
   context.subscriptions.push(disposableFolderScan);
   context.subscriptions.push(disposableNuclei);
