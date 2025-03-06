@@ -79,6 +79,9 @@ export async function buildContainers(context: vscode.ExtensionContext): Promise
     command = `docker pull projectdiscovery/nuclei:latest`;
     await executeCommand(command, 'Pulling nuclei docker container', reposhieldPath);
 
+    command = `docker pull semgrep/semgrep:latest`; // Pull Semgrep Docker image
+    await executeCommand(command, 'Pulling semgrep docker container', reposhieldPath);
+
     return true;
 }
 
@@ -254,4 +257,18 @@ export async function unitTest(reposhieldPath: string, get_routes: any[]): Promi
 
 export async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function semgrepScan(): Promise<boolean> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+        throw new Error('No workspace folder found');
+    }
+    
+    // Command to run Semgrep in Docker container
+    let command = `docker run --rm -v "${workspaceFolder.uri.fsPath}:/src" semgrep/semgrep bash -c "mkdir -p /.reposhield/semgrep && semgrep --config 'p/owasp-top-ten' --sarif --output /src/.reposhield/semgrep/semgrep-results.sarif /src --exclude='/src/venv/**' --exclude='/src/.reposhield/**'"`;
+    
+    await executeCommand(command, 'Semgrep scan', workspaceFolder.uri.fsPath);
+  
+    return true;
 }

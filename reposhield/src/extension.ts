@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as unzipper from "unzipper";
 import * as os from "os";
-import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer, buildContainers } from "./cmd";
+import { runSandbox, cleanCodeqlContainer, cleanSandboxContainer, runNucleiDocker, executeCommand, codeqlScan, cleanNucleiContainer, buildContainers, semgrepScan } from "./cmd";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { generateNucleiTemplates } from "./nuclei";
 
@@ -144,24 +144,37 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       try {
         const endpoints = await extractEndpoints();
-        // write endpoints to a json file
+        // Write endpoints to a json file
         fs.writeFileSync(
           path.join(reposhieldPath, "endpoints.json"),
           JSON.stringify(endpoints, null, 2)
         );
-
+  
         vscode.window.withProgress({
           location: vscode.ProgressLocation.Notification,
-          title: `Scanning workspace: ${workspaceFolder.uri.fsPath}...` ,
+          title: `Scanning workspace: ${workspaceFolder.uri.fsPath}...`,
           cancellable: true
         }, async (progress, token) => {
           token.onCancellationRequested(() => {
             cleanCodeqlContainer();
+            cleanNucleiContainer();
+            cleanSandboxContainer();
             console.log("User cancelled the long running operation");
           });
+  
+          // Run CodeQL scan
           await codeqlScan();
           let resultPath = path.join(reposhieldPath, 'codeql', 'results.sarif');
           openSarifViewerPannel(resultPath);
+          
+          // Run Semgrep scan (add Semgrep scan)
+          await semgrepScan();
+          // Define path for Semgrep results
+          let semgrepResultsPath = path.join(reposhieldPath, 'semgrep', 'semgrep-results.sarif');
+          // Open the Semgrep results in the viewer
+          // openSemgrepResultsPanel(semgrepResultsPath);
+          openSarifViewerPannel(semgrepResultsPath);
+  
           vscode.window.showInformationMessage("Scanning complete");
         });
       } catch (error: any) {
@@ -169,6 +182,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
   );
+  
 
   const disposableReadLog = vscode.commands.registerCommand(
     "reposhield.readLog",
