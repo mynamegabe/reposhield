@@ -5,3 +5,4 @@ node_modules
 *.vsix
 demo/.reposhield
 python-sample/.reposhield
+__pycache__/

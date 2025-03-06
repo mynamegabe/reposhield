@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require('fs');
 const path = require('path');
 const uuid = require('uuid');
-const re = require('re2'); // Using re2 for regular expression in Node.js
 const { program } = require('commander'); // For argument parsing
 function getNestedValue(element, keys, required = false, defaultValue = '') {
     let _element = element;

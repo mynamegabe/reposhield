@@ -118,27 +118,15 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // This method is called when your extension is activated
 async function activate(context) {
     console.log("RepoShield extension is now active!");
-    const SANDBOX_DOCKER_CONTENT = readInternalFile(context, "sandbox/Dockerfile");
-    const SANDBOX_ANALYZE_CONTENT = readInternalFile(context, "sandbox/analyze.sh");
-    const CODEQL_DOCKER_CONTENT = readInternalFile(context, "codeql/Dockerfile");
-    const CODEQL_ANALYZE_CONTENT = readInternalFile(context, "codeql/analyze.sh");
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         vscode.window.showErrorMessage("No workspace folder found.");
         return;
     }
     const reposhieldPath = path.join(workspaceFolder.uri.fsPath, ".reposhield");
-    // Define the path for the CodeQL database
-    const sandboxFolder = path.join(reposhieldPath, "sandbox");
-    const codeqlFolder = path.join(reposhieldPath, "codeql");
     if (!fs.existsSync(reposhieldPath)) {
-        fs.mkdirSync(sandboxFolder, { recursive: true });
-        fs.mkdirSync(codeqlFolder, { recursive: true });
-        await writeFile(path.join(sandboxFolder, "Dockerfile"), SANDBOX_DOCKER_CONTENT);
-        await writeFile(path.join(sandboxFolder, "analyze.sh"), SANDBOX_ANALYZE_CONTENT);
-        await writeFile(path.join(codeqlFolder, "Dockerfile"), CODEQL_DOCKER_CONTENT);
-        await writeFile(path.join(codeqlFolder, "analyze.sh"), CODEQL_ANALYZE_CONTENT);
-        vscode.window.showInformationMessage('Created "codeql-database" directory in the workspace.');
+        fs.mkdirSync(reposhieldPath, { recursive: true });
+        vscode.window.showInformationMessage('Created ".reposhield" directory in the workspace.');
     }
     // Build containers
     vscode.window.withProgress({
@@ -152,14 +140,14 @@ async function activate(context) {
             (0, cmd_1.cleanSandboxContainer)();
             console.log("User cancelled the long running operation");
         });
-        await (0, cmd_1.buildContainers)();
+        await (0, cmd_1.buildContainers)(context);
         vscode.window.showInformationMessage("Containers built!");
     });
     // Register the command to scan the whole workspace/folder
     const disposableFolderScan = vscode.commands.registerCommand("reposhield.scanWorkspace", async () => {
         try {
             const endpoints = await extractEndpoints();
-            // write endpoints to a json file
+            // Write endpoints to a json file
             fs.writeFileSync(path.join(reposhieldPath, "endpoints.json"), JSON.stringify(endpoints, null, 2));
             vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
@@ -168,11 +156,21 @@ async function activate(context) {
             }, async (progress, token) => {
                 token.onCancellationRequested(() => {
                     (0, cmd_1.cleanCodeqlContainer)();
+                    (0, cmd_1.cleanNucleiContainer)();
+                    (0, cmd_1.cleanSandboxContainer)();
                     console.log("User cancelled the long running operation");
                 });
+                // Run CodeQL scan
                 await (0, cmd_1.codeqlScan)();
-                let resultPath = path.join(reposhieldPath, 'results.sarif');
+                let resultPath = path.join(reposhieldPath, 'codeql', 'results.sarif');
                 openSarifViewerPannel(resultPath);
+                // Run Semgrep scan (add Semgrep scan)
+                await (0, cmd_1.semgrepScan)();
+                // Define path for Semgrep results
+                let semgrepResultsPath = path.join(reposhieldPath, 'semgrep', 'semgrep-results.sarif');
+                // Open the Semgrep results in the viewer
+                // openSemgrepResultsPanel(semgrepResultsPath);
+                openSarifViewerPannel(semgrepResultsPath);
                 vscode.window.showInformationMessage("Scanning complete");
             });
         }
@@ -198,7 +196,8 @@ async function activate(context) {
                 (0, cmd_1.cleanSandboxContainer)();
                 console.log("User cancelled the long running operation");
             });
-            await (0, cmd_1.runSandbox)();
+            const endpoints = JSON.parse(fs.readFileSync(path.join(reposhieldPath, "endpoints.json"), "utf-8"));
+            await (0, cmd_1.runSandbox)(endpoints);
             vscode.window.showInformationMessage("Scanning completed!");
         });
     });

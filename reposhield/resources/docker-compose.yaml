@@ -20,13 +20,13 @@ services:
       retries: 10
 
   nuclei_runner:
-    image: projectdiscovery/nuclei
+    # image: projectdiscovery/nuclei
+    build:
+      context: ./nuclei
+      dockerfile: Dockerfile
     volumes:
       - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\reposhield\resources\nuclei\templates:/app/templates
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\reposhield\resources\nuclei\payloads:/app/payloads
       - ./results:/app/results
-    # command: -jsonl /app/results/results.jsonl -u http://api:8000 -t /app/templates/
-    command: -u http://api:8000 -t /app/templates/ -v -validate
     depends_on:
       api:
         condition: service_healthy

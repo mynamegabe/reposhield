@@ -169,7 +169,6 @@ export async function runNucleiDocker(resourceDirectory: string, templateDirecto
     composeString = composeString.replace('||workspaceFolder||', workspaceFolder.uri.fsPath);
     // replace ||templateFolder|| with resourceDirectory/nuclei/templates
     composeString = composeString.replace('||templateFolder||', path.join(resourceDirectory, 'nuclei/templates'));
-    composeString = composeString.replace('||payloadsFolder||', path.join(resourceDirectory, 'nuclei/payloads'));
 
     
     const composeFile = path.join(resourceDirectory, 'docker-compose.yaml');
