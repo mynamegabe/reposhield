@@ -4,7 +4,6 @@ import os
 import pickle
 import html
 from starlette.responses import HTMLResponse
-from databases import Database
 
 router = APIRouter(
     prefix="/vulnerabilities",
@@ -46,8 +45,9 @@ async def safe_xss(name: str = ""):
 async def unsafe_sqli(username: str):
     """BAD: SQL injection vulnerability"""
     query = f"SELECT * FROM users WHERE username = '{username}'"
-    result = await database.fetch_one(query)
-    return {"user": result}
+    # result = await database.fetch_one(query)
+    # return {"user": result}
+    return {"user": "result"}
 
 
 # Unsafe Deserialization

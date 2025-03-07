@@ -59,13 +59,12 @@ RUN chmod +x /root/scripts/analyze.sh
 RUN dos2unix /root/scripts/analyze.sh
 
 # Gets files for filesystem watcher
-RUN wget -q -O /root/scripts/x86_64-unknown-linux-gnu.tar https://github.com/e-dant/watcher/releases/download/0.13.5/x86_64-unknown-linux-gnu.tar
-RUN tar -xf /root/scripts/x86_64-unknown-linux-gnu.tar -C /
-RUN rm /root/scripts/x86_64-unknown-linux-gnu.tar
+RUN mkdir /tools
+RUN wget -q -O /tools/watcher.py https://raw.githubusercontent.com/0x413x4/watcher/refs/heads/master/watcher.py
 
 # Gets files for process watcher
-RUN wget -q -O /x86_64-unknown-linux-gnu/pspy64 https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64
-RUN chmod -R 777 /x86_64-unknown-linux-gnu
+RUN wget -q -O /tools/pspy64 https://github.com/DominicBreuker/pspy/releases/download/v1.2.1/pspy64
+RUN chmod -R 777 /tools
 
 # Execute analyze script
 WORKDIR /root/

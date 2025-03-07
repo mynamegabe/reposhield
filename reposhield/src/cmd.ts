@@ -102,13 +102,14 @@ export async function codeqlScan(): Promise<boolean> {
     return true;
 }
 
-export async function runSandbox(endpoints: any): Promise<boolean> {
+export async function runSandbox(context: vscode.ExtensionContext, endpoints: any): Promise<boolean> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
         throw new Error('No workspace folder found');
     }
 
     let reposhieldPath = path.join(workspaceFolder.uri.fsPath, '.reposhield');
+    let sandboxPath = path.join(context.extensionPath, "resources", "sandbox");
 
     let envs = [];
     // Hardcoded for now for testing
@@ -118,6 +119,25 @@ export async function runSandbox(endpoints: any): Promise<boolean> {
         `-e "LANGUAGE=python"`,
     );
     const envString = envs.join(' ');
+
+
+    // For future works, to implement user sandbox, monitoring for js attacks?
+
+    // const baseComposeFile = path.join(sandboxPath, 'docker-compose-base.yaml');
+    // let composeContent = await vscode.workspace.fs.readFile(vscode.Uri.file(baseComposeFile));
+    // let composeString = new TextDecoder().decode(composeContent);
+    // composeString = composeString.replace('||workspaceFolder||', workspaceFolder.uri.fsPath);
+    // // replace ||templateFolder|| with resourceDirectory/nuclei/templates
+    // composeString = composeString.replace('||templateFolder||', path.join(workspaceFolder.uri.fsPath, 'sandbox/user'));
+
+    // const composeFile = path.join(sandboxPath, 'docker-compose.yaml');
+    // await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), Buffer.from(composeString));
+
+    // let command = `docker-compose up --build`;
+    // await executeCommand(command, 'Running docker container', resourceDirectory);
+
+
+    
 
     let command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -p 49153:${endpoints.port} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
     let get_routes: any[] = [];  // Initialize an empty array to store GET routes
@@ -171,12 +191,12 @@ export async function runNucleiDocker(resourceDirectory: string, templateDirecto
     composeString = composeString.replace('||workspaceFolder||', workspaceFolder.uri.fsPath);
     // replace ||templateFolder|| with resourceDirectory/nuclei/templates
     composeString = composeString.replace('||templateFolder||', path.join(resourceDirectory, 'nuclei/templates'));
+    composeString = composeString.replace('||outputFolder||', path.join(workspaceFolder.uri.fsPath, '.reposhield', 'nuclei'));
 
     
     const composeFile = path.join(resourceDirectory, 'docker-compose.yaml');
     await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), Buffer.from(composeString));
     
-
 
     let command = `docker-compose up --build`;
     await executeCommand(command, 'Running docker container', resourceDirectory);
@@ -198,22 +218,9 @@ export async function formatLogs(reposhieldPath: string): Promise<boolean> {
     const filesystemFile = path.join(reposhieldPath, 'sandbox', 'watcher.log');
     const filesystemContent = await vscode.workspace.fs.readFile(vscode.Uri.file(filesystemFile));
     let filesystemString = new TextDecoder().decode(filesystemContent);
-    const modifiedFilesystemString = filesystemString.split('\n').map(line => {
-        let jsonLine;
-        try {
-            jsonLine = JSON.parse(line);
-        } catch (err) {
-            return line;
-        }
-        if (jsonLine.path_type === 'watcher') {
-            return null;
-        }
-        if (jsonLine.hasOwnProperty('effect_time')) {
-            delete jsonLine.effect_time;
-        }
-        return JSON.stringify(jsonLine);
-    }).filter(line => line !== null).join('\n');
-    await vscode.workspace.fs.writeFile(vscode.Uri.file(filesystemFile), Buffer.from(modifiedFilesystemString));
+    filesystemString = filesystemString.replace(/\0/g, '');
+    const updatedContent = new TextEncoder().encode(filesystemString);
+    await vscode.workspace.fs.writeFile(vscode.Uri.file(filesystemFile), updatedContent);
 
     return true;
 }

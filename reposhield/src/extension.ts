@@ -215,7 +215,13 @@ export async function activate(context: vscode.ExtensionContext) {
               "utf-8"
             )
           );
-          await runSandbox(endpoints);
+          // const endpoints = await extractEndpoints();
+          // Write endpoints to a json file
+          // fs.writeFileSync(
+          //   path.join(reposhieldPath, "endpoints.json"),
+          //   JSON.stringify(endpoints, null, 2)
+          // );
+          await runSandbox(context, endpoints);
           vscode.window.showInformationMessage("Scanning completed!");
         }
       );

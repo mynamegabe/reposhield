@@ -20,13 +20,12 @@ services:
       retries: 10
 
   nuclei_runner:
-    # image: projectdiscovery/nuclei
     build:
       context: ./nuclei
       dockerfile: Dockerfile
     volumes:
-      - ||templateFolder||:/app/templates
-      - ||outputFolder||:/app/results
+      - ||outputFolder||:/opt/logs
+      - ./results:/app/results
     depends_on:
       api:
         condition: service_healthy

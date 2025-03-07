@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\demo:/opt/src
+      - c:\VMWare Shared\final_git\reposhield\demo:/opt/src
     environment:
       - EXECMD=python3 app.py
       - APPPORT=8000
@@ -25,8 +25,8 @@ services:
       context: ./nuclei
       dockerfile: Dockerfile
     volumes:
-      - c:\Users\Gabriel\Desktop\School\Y2T2\ICT2214 - Web Security\reposhield\reposhield\resources\nuclei\templates:/app/templates
-      - ./results:/app/results
+      - c:\Users\YeoJo\Downloads\reposhield\resources\nuclei\templates:/app/templates
+      - c:\VMWare Shared\final_git\reposhield\demo\.reposhield\nuclei:/app/results
     depends_on:
       api:
         condition: service_healthy

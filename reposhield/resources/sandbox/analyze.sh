@@ -25,6 +25,7 @@ fi
 WORKSPACE="/opt/src"
 
 install_dependencies() {  
+  pip install inotify colorama --break-system-packages
   case "$LANGUAGE" in
     node)
       if [ -f "$WORKSPACE/package.json" ]; then
@@ -99,16 +100,22 @@ mkdir $SANDBOX_DIR
 # Install dependencies
 install_dependencies
 
-WATCHER_DIR=/x86_64-unknown-linux-gnu
+WATCHER_DIR=/tools
 echo "Starting process monitor..."
 # Start pspy to monitor processes
 cp $SANDBOX_DIR/processes.txt $SANDBOX_DIR/processes.txt.bak
 echo -n "" > $SANDBOX_DIR/processes.txt
 $WATCHER_DIR/pspy64 --color=false $VERBOSE_PROCMON >> $SANDBOX_DIR/processes.txt 2>/dev/null &
 
+# filesystem watcher
+cp $SANDBOX_DIR/watcher.log $SANDBOX_DIR/watcher.log.bak
+echo -n "" > $SANDBOX_DIR/watcher.log
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /tmp > $SANDBOX_DIR/watcher.log &
+
 # Wait for pspy to start, then clear the false positives
 sleep 6
 echo -n "" > $SANDBOX_DIR/processes.txt
+echo -n "" > $SANDBOX_DIR/watcher.log
 
 # Start the web service
 echo "Starting the web service with command: $EXECMD"
@@ -144,22 +151,6 @@ if ! ps -p $SERVICE_PID > /dev/null; then
   echo "Service is not running. Exiting..." >> "$CPU_RAM_LOG"
   exit 1
 fi
-
-# filesystem watcher
-cp $SANDBOX_DIR/watcher.log $SANDBOX_DIR/watcher.log.bak
-echo -n "" > $SANDBOX_DIR/watcher.log
-$WATCHER_DIR/watcher /home >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /dev >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /etc >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /tmp >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /root >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /media >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /mnt >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /run >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /sys >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /usr >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /var >> $SANDBOX_DIR/watcher.log 2>&1 &
-$WATCHER_DIR/watcher /srv >> $SANDBOX_DIR/watcher.log 2>&1 &
 
 # Wait for the service to finish running (optional, you can stop it after a certain timeout)
 sleep 6000
