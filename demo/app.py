@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import select
 from typing import Annotated, Optional, List
 # from routers import users, auth, events, calendar, quiz
-from routers import files
+from routers import files, vulnerabilities
 from utils.common import hash_password, random_string
 from db import Session, get_session, User, create_db_and_tables
 from utils.common import get_current_active_user
@@ -43,6 +43,7 @@ app.add_middleware(
 
 # app.include_router(users.router)
 app.include_router(files.router)
+app.include_router(vulnerabilities.router)
 # app.include_router(auth.router)
 # app.include_router(events.router)
 # app.include_router(calendar.router)
