@@ -136,10 +136,7 @@ export async function runSandbox(context: vscode.ExtensionContext, endpoints: an
     // let command = `docker-compose up --build`;
     // await executeCommand(command, 'Running docker container', resourceDirectory);
 
-
-    
-
-    let command = `docker run --rm --name ${SANDBOX_CONTAINER_NAME} -p 49153:${endpoints.port} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
+    let command = `docker run --cap-add=NET_ADMIN --rm --name ${SANDBOX_CONTAINER_NAME} -p 49153:${endpoints.port} -v "${workspaceFolder.uri.fsPath}:/opt/src" ${envString} ${SANDBOX_CONTAINER_NAME}`;
     let get_routes: any[] = [];  // Initialize an empty array to store GET routes
 
     if (endpoints.routes && Array.isArray(endpoints.routes)) {

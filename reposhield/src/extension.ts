@@ -59,7 +59,7 @@ async function extractRoutesParams(fileContents: {
   const result = await model.generateContent(prompt);
   console.log(result.response.text());
 
-    // regex match PORT: <port>
+  // regex match PORT: <port>
   const portRegex = /PORT: (\d+)/;
   const portMatch = result.response.text().match(portRegex);
   if (!portMatch) {
@@ -149,7 +149,7 @@ export async function activate(context: vscode.ExtensionContext) {
           path.join(reposhieldPath, "endpoints.json"),
           JSON.stringify(endpoints, null, 2)
         );
-  
+
         vscode.window.withProgress({
           location: vscode.ProgressLocation.Notification,
           title: `Scanning workspace: ${workspaceFolder.uri.fsPath}...`,
@@ -161,12 +161,12 @@ export async function activate(context: vscode.ExtensionContext) {
             cleanSandboxContainer();
             console.log("User cancelled the long running operation");
           });
-  
+
           // Run CodeQL scan
           await codeqlScan();
           let resultPath = path.join(reposhieldPath, 'codeql', 'results.sarif');
           openSarifViewerPannel(resultPath);
-          
+
           // Run Semgrep scan (add Semgrep scan)
           await semgrepScan();
           // Define path for Semgrep results
@@ -174,7 +174,7 @@ export async function activate(context: vscode.ExtensionContext) {
           // Open the Semgrep results in the viewer
           // openSemgrepResultsPanel(semgrepResultsPath);
           openSarifViewerPannel(semgrepResultsPath);
-  
+
           vscode.window.showInformationMessage("Scanning complete");
         });
       } catch (error: any) {
@@ -182,7 +182,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
   );
-  
+
 
   const disposableReadLog = vscode.commands.registerCommand(
     "reposhield.readLog",
@@ -234,7 +234,7 @@ export async function activate(context: vscode.ExtensionContext) {
       // await formatLogs(reposhieldPath);
       const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt"));
       const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt.bak"));
-      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Process Diff Viewer').then(() => {
+      vscode.commands.executeCommand('vscode.diff', uri2, uri1, 'Process Diff Viewer').then(() => {
       }, (err) => {
         vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
       });
@@ -246,7 +246,7 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log"));
       const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log.bak"));
-      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Filesystem Diff Viewer').then(() => {
+      vscode.commands.executeCommand('vscode.diff', uri2, uri1, 'Filesystem Diff Viewer').then(() => {
       }, (err) => {
         vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
       });
@@ -371,4 +371,4 @@ async function writeFile(filePath: string, fileContent: string) {
 }
 
 // This method is called when your extension is deactivated
-export async function deactivate() {}
+export async function deactivate() { }

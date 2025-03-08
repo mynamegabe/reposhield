@@ -25,7 +25,6 @@ fi
 WORKSPACE="/opt/src"
 
 install_dependencies() {  
-  pip install inotify colorama --break-system-packages
   case "$LANGUAGE" in
     node)
       if [ -f "$WORKSPACE/package.json" ]; then
@@ -39,7 +38,7 @@ install_dependencies() {
     python)
       if [ -f "$WORKSPACE/requirements.txt" ]; then
         echo "Installing Python dependencies from requirements.txt..."
-        pip install -r "$WORKSPACE/requirements.txt" --break-system-packages
+        pip install -r "$WORKSPACE/requirements.txt"
       else
         echo "requirements.txt not found in $WORKSPACE! Please ensure it exists to install dependencies."
         exit 1
@@ -100,6 +99,12 @@ mkdir $SANDBOX_DIR
 # Install dependencies
 install_dependencies
 
+# Deletes network interface (cant work cuz host cant access)
+# ip link delete eth0
+iptables -A OUTPUT -o eth1 -d 0.0.0.0/0 -j DROP
+
+python3 -m fakenet.fakenet &
+
 WATCHER_DIR=/tools
 echo "Starting process monitor..."
 # Start pspy to monitor processes
@@ -110,7 +115,16 @@ $WATCHER_DIR/pspy64 --color=false $VERBOSE_PROCMON >> $SANDBOX_DIR/processes.txt
 # filesystem watcher
 cp $SANDBOX_DIR/watcher.log $SANDBOX_DIR/watcher.log.bak
 echo -n "" > $SANDBOX_DIR/watcher.log
-python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /tmp > $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /tmp >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /dev >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /root >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /home >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /etc >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /mnt >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /var >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /sys >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /srv >> $SANDBOX_DIR/watcher.log &
+python3 $WATCHER_DIR/watcher.py --events IN_CREATE IN_DELETE IN_MODIFY IN_MOVED_FROM IN_DELETE_SELF IN_MOVED_TO IN_MOVE_SELF -r /usr >> $SANDBOX_DIR/watcher.log &
 
 # Wait for pspy to start, then clear the false positives
 sleep 6
