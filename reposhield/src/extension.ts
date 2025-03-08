@@ -234,7 +234,7 @@ export async function activate(context: vscode.ExtensionContext) {
       // await formatLogs(reposhieldPath);
       const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt"));
       const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "processes.txt.bak"));
-      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Process Diff Viewer').then(() => {
+      vscode.commands.executeCommand('vscode.diff', uri2, uri1, 'Process Diff Viewer').then(() => {
       }, (err) => {
         vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
       });
@@ -246,7 +246,7 @@ export async function activate(context: vscode.ExtensionContext) {
     async () => {
       const uri1 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log"));
       const uri2 = vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, ".reposhield", "sandbox", "watcher.log.bak"));
-      vscode.commands.executeCommand('vscode.diff', uri1, uri2, 'Filesystem Diff Viewer').then(() => {
+      vscode.commands.executeCommand('vscode.diff', uri2, uri1, 'Filesystem Diff Viewer').then(() => {
       }, (err) => {
         vscode.window.showErrorMessage('No files to compare. Make sure you have a new and old log from starting dynamic scans.');
       });

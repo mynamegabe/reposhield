@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 # tzdata install needs to be non-interactive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,7 +16,7 @@ RUN apt-get update && \
     	build-essential \
     	unzip \
     	apt-transport-https \
-        python3.8 \
+        python3.11 \
     	python3-venv \
     	python3-pip \
     	python3-setuptools \
@@ -31,10 +31,13 @@ RUN apt-get update && \
     	file \
         dos2unix \
         default-jdk \
+		iproute2 \
+		iptables \
 		maven \
+		libnetfilter-queue-dev \
     	gettext && \
         apt-get clean && \
-        ln -sf /usr/bin/python3.8 /usr/bin/python && \
+        ln -sf /usr/bin/python3.11 /usr/bin/python && \
         ln -sf /usr/bin/pip3 /usr/bin/pip
 
 # Install Gradle
@@ -46,6 +49,10 @@ RUN ln -s /opt/gradle/gradle-${GRADLE_VERSION} /opt/gradle/latest
 # Install Linguist
 RUN apt-get install -y cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev
 RUN gem install github-linguist
+
+# Install Python Libraries
+RUN pip install inotify colorama
+RUN pip install https://github.com/mandiant/flare-fakenet-ng/zipball/master
 
 # Install Golang
 RUN wget -q -O - https://raw.githubusercontent.com/canha/golang-tools-install-script/master/goinstall.sh | bash
