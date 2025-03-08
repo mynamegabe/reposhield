@@ -28,7 +28,6 @@ SessionDep = Annotated[Session, Depends(get_session)]
 app = FastAPI()
 
 origins = [
-    "https://nextcal.gabrielseet.com",
     "http://localhost:5173",
     "http://localhost:8000",
 ]
@@ -44,10 +43,6 @@ app.add_middleware(
 # app.include_router(users.router)
 app.include_router(files.router)
 app.include_router(vulnerabilities.router)
-# app.include_router(auth.router)
-# app.include_router(events.router)
-# app.include_router(calendar.router)
-# app.include_router(quiz.router)
 
 
 # @app.on_event("startup")

@@ -1,9 +1,0 @@
-extraversion
-openness
-conscientiousness
-agreeableness
-neuroticism
-interests
-energy_level
-preferred_time
-social_preference

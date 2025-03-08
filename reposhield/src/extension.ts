@@ -59,7 +59,7 @@ async function extractRoutesParams(fileContents: {
   const result = await model.generateContent(prompt);
   console.log(result.response.text());
 
-    // regex match PORT: <port>
+  // regex match PORT: <port>
   const portRegex = /PORT: (\d+)/;
   const portMatch = result.response.text().match(portRegex);
   if (!portMatch) {
@@ -149,7 +149,7 @@ export async function activate(context: vscode.ExtensionContext) {
           path.join(reposhieldPath, "endpoints.json"),
           JSON.stringify(endpoints, null, 2)
         );
-  
+
         vscode.window.withProgress({
           location: vscode.ProgressLocation.Notification,
           title: `Scanning workspace: ${workspaceFolder.uri.fsPath}...`,
@@ -161,12 +161,12 @@ export async function activate(context: vscode.ExtensionContext) {
             cleanSandboxContainer();
             console.log("User cancelled the long running operation");
           });
-  
+
           // Run CodeQL scan
           await codeqlScan();
           let resultPath = path.join(reposhieldPath, 'codeql', 'results.sarif');
           openSarifViewerPannel(resultPath);
-          
+
           // Run Semgrep scan (add Semgrep scan)
           await semgrepScan();
           // Define path for Semgrep results
@@ -174,7 +174,7 @@ export async function activate(context: vscode.ExtensionContext) {
           // Open the Semgrep results in the viewer
           // openSemgrepResultsPanel(semgrepResultsPath);
           openSarifViewerPannel(semgrepResultsPath);
-  
+
           vscode.window.showInformationMessage("Scanning complete");
         });
       } catch (error: any) {
@@ -182,7 +182,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
   );
-  
+
 
   const disposableReadLog = vscode.commands.registerCommand(
     "reposhield.readLog",
@@ -295,8 +295,104 @@ export async function activate(context: vscode.ExtensionContext) {
 
           const composeDirectory = path.join(context.extensionPath, "resources");
 
+          console.log("Running Nuclei scan...");
           await runNucleiDocker(composeDirectory, templateDirectory, targetPort);
+          console.log("Nuclei scan completed!");
+
+          fs.readFile(path.join(workspaceFolder.uri.fsPath, '.reposhield', 'nuclei', 'results.txt'),
+            'utf8', (err, data) => {
+            if (err) {
+              console.error('Error reading results.txt:', err);
+              return;
+            }
+
+            // Regular expression to match the param value
+            const paramRegex = /param="(.*?)"/;
+
+            // Regular expression to match the injection value, if it exists
+            const injectionRegex = /injection="(.*?)"/;
+
+            // Parse the results from the file
+            const results = data.split('\n').filter(line => line.trim() !== '').map(line => {
+              // Split the line by spaces (this assumes all fields are space-separated)
+              const parts = line.split(' ');
+
+              // Ensure the line has at least the required parts
+              if (parts.length < 5) return null;
+
+              const ruleId = parts[0].slice(1, -1);  // Remove the square brackets from the rule-id
+              const protocol = parts[1].slice(1, -1); // Remove the square brackets from the protocol
+              const severity = parts[2].slice(1, -1); // Remove the square brackets from the severity
+              const url = parts[3];  // URL is the fourth segment in the line
+              const lastSegment = parts.slice(4).join(' ');  // The rest of the line after the URL
+
+              // Extract param value using the paramRegex
+              const paramMatch = lastSegment.match(paramRegex);
+              const param = paramMatch ? paramMatch[1] : "unknown";  // If param is found, use it, otherwise "unknown"
+
+              // Extract injection value using the injectionRegex if it exists
+              const injectionMatch = lastSegment.match(injectionRegex);
+              const injection = injectionMatch ? injectionMatch[1] : "None";  // Default to "None" if injection is not present
+
+              // Constructing the SARIF result
+              return {
+                ruleId,
+                message: {
+                  text: `${ruleId} vulnerability detected on ${url}`
+                },
+                locations: [
+                  {
+                    physicalLocation: {
+                      artifactLocation: {
+                        uri: url
+                      },
+                      region: {
+                        startLine: 1, // Line numbers are not present in the txt file, so using a placeholder
+                        startColumn: 1
+                      }
+                    }
+                  }
+                ],
+                severity,
+                properties: {
+                  param,
+                  injection
+                }
+              };
+            }).filter(result => result !== null);  // Remove null entries if regex does not match
+
+            // Construct the SARIF structure
+            const sarif = {
+              "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/v2.1.0/schemas/sarif-schema-2.1.0.json",
+              "version": "2.1.0",
+              "runs": [
+                {
+                  "tool": {
+                    "driver": {
+                      "name": "Nuclei",
+                      "version": "1.0.0",
+                      "informationUri": "https://github.com/projectdiscovery/nuclei"
+                    }
+                  },
+                  "results": results
+                }
+              ]
+            };
+
+            // Write the SARIF output to results.sarif
+            fs.writeFile(path.join(workspaceFolder.uri.fsPath, '.reposhield', 'nuclei', 'results.sarif'),
+              JSON.stringify(sarif, null, 2), (err) => {
+              if (err) {
+                console.error('Error writing results.sarif:', err);
+                return;
+              }
+              console.log('SARIF file saved as results.sarif');
+            });
+          });
+
           vscode.window.showInformationMessage("Scanning complete");
+
+          openSarifViewerPannel(path.join(workspaceFolder.uri.fsPath, '.reposhield', 'nuclei', 'results.sarif'));
         }
       );
     }
@@ -371,4 +467,4 @@ async function writeFile(filePath: string, fileContent: string) {
 }
 
 // This method is called when your extension is deactivated
-export async function deactivate() {}
+export async function deactivate() { }

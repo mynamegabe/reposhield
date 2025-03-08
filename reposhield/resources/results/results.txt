@@ -1,1 +1,2 @@
-[linux-lfi-fuzzing] [http] [high] http://api:8000/files/?filename=../../../etc/passwd [param="filename"]
+[linux-lfi-fuzzing] [http] [high] http://api:8000/vulnerabilities/unsafe_file_access?p=..///////..////..//////etc/passwd [param="p"]
+[linux-lfi-fuzzing] [http] [high] http://api:8000/files/?filename=..///////..////..//////etc/passwd [param="filename"]

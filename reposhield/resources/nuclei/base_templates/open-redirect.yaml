@@ -1,0 +1,40 @@
+id: open-redirect
+
+info:
+  name: Open Redirect
+  author: mynamegabe
+  severity: medium
+  description: |
+    This template attempts to identify Open Redirect vulnerabilities in the  parameters
+    of the target endpoint by injecting external URLs and checking for redirection.
+  metadata:
+    max-request: 3
+  tags: redirect,openredirect,dast
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}||path||?{{param}}={{injection}}"
+
+    attack: pitchfork
+    payloads:
+      injection:
+        - "http://evil.com"
+        - "//evil.com"
+        - "https://evil.com"
+        - "//google.com@evil.com"
+        - "https://www.example.com@evil.com"
+      param: ./payloads/||pathfile||.txt
+
+    matchers:
+      - type: status
+        status:
+          - 302
+          - 301
+
+      - type: regex
+        part: header_name
+        name: Location
+        regex:
+          - "evil.com"
+        condition: or

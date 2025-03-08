@@ -6,3 +6,5 @@ node_modules
 demo/.reposhield
 python-sample/.reposhield
 __pycache__/
+/reposhield/resources/nuclei/templates/*
+/reposhield/resources/nuclei/payloads/*

