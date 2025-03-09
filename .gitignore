@@ -3,8 +3,9 @@ dist
 node_modules
 .vscode-test/
 *.vsix
-demo/.reposhield
-python-sample/.reposhield
+demos/python-webapp-demo/.reposhield
+demos/python-samples/.reposhield
+demos/golang-samples/.reposhield
 __pycache__/
 /reposhield/resources/nuclei/templates/*
 /reposhield/resources/nuclei/payloads/*

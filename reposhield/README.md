@@ -1,71 +1,64 @@
-# reposhield README
 
-This is the README for your extension "reposhield". After writing up a brief description, we recommend including the following sections.
+## Setup for vs code extension development
 
+```
+npm install --global yo generator-code
+
+yo code
+```
+
+Upon installing the extension, there will be a new icon at the left activity bar of vs code, use that to run a scan on the workspace.
+
+You can also `read logs` after running a codeql scan.
 ## Features
+### Scan workspace
+Scans the workspace using **CodeQL**. Currently is only checks for empty try/except blocks in python. It should be modified to scan a range of programming languages and scan using custom/predefined query packs.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+The custom query packs are placed under the `/queries` folder. Right now it runs a predefined query pack called `codeql/python-queries`.
 
-For example if there is an image subfolder under your extension project workspace:
+We can modify the database analysis to run our custom query as well, but need to modify in `extension.ts`.
 
-\!\[feature X\]\(images/feature-x.png\)
+To view predefined query packs, refer to the `CodeQL Query packs` section of this README.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+### Read Log
+Reads the logs using `Sarif Reader` vscode extension.
 
-## Requirements
+Logs have to be generated first by running `Scan workspace`.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+### Run dynamic analysis
+Builds a docker container as a sandboxing method. Right now it gets cpu and ram usage after executing the web application. Need to output way more information on these.
 
-## Extension Settings
+One huge disadvantage of this method is that it uses up 3GB of space just for one container. (may need to remove the container after running so to save space).
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+Another huge disadvantage is that it requires the user to have docker installed, which won't always be the case.
 
-For example:
+It also does a simple fuzzing of endpoints right now, which outputs the statuscode to the report (report is found in .reposhield/report after running successfully).
 
-This extension contributes the following settings:
+The requirements for executing the dynamic analysis is to change the environment variables during the running of the docker container (look at `cmd.ts` under `runDocker` function).
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+The values to set these env vars can be defined with the help of LLM.
+- **EXECMD**: command to run to start the web application
+- **APPPORT**: port number that the application would run on
+- **ENDPOINTS**: endpoints of the web app, delimited by ','
+- **LANGUAGE**: programming language used for the base application (need to figure out how to do it for multiple languages)
 
-## Known Issues
+## CodeQL Query packs
+https://github.com/advanced-security/awesome-codeql?tab=readme-ov-file
+https://github.com/orgs/codeql/packages?tab=packages&q=javascript
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+## CodeQL Queries
 
-## Release Notes
+Under the `/queries` folder, you will find a test.ql, this query is used for finding empty `try/except` blocks in python.
 
-Users appreciate release notes as you update your extension.
+The `qlpack.yml` is a requirement to aid in the installation of the query pack (e.g. import python/cpp/javascript/typescript etc.)
+- Change the dependencies to install the packs needed.
+- To install the query pack, use cli and enter the directory with the `qlpack.yml`, then run `codeql pack install`.
 
-### 1.0.0
+We can then run the query in the database analysis: `codeql database analyze <db_dir> .\test.ql --format=sarifv2.1.0 --output=results.sarif`
 
-Initial release of ...
+This `.sarif` file can then be opened in sarif viewer (vscode extension).
 
-### 1.0.1
 
-Fixed issue #.
+### Code reference
 
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+https://github.com/codeql-agent-project/codeql-agent-docker/blob/main/Dockerfile
